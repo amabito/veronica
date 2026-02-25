@@ -1,8 +1,9 @@
 # VERONICA
 
-**The Planner layer for the VERONICA stack.**
+**The Execution OS for LLM systems.**
 
-VERONICA decides. [veronica-core](https://github.com/amabito/veronica-core) enforces.
+[veronica-core](https://github.com/amabito/veronica-core) is the containment engine.
+VERONICA is the Execution OS built around it.
 
 ---
 
@@ -10,74 +11,70 @@ VERONICA decides. [veronica-core](https://github.com/amabito/veronica-core) enfo
 
 LLM execution systems need two distinct layers:
 
-**Executor** (veronica-core): deterministic enforcement of cost, step, and retry limits.
-Auditable. Dependency-light. Guarantees are unconditional.
+**Engine** ([veronica-core](https://github.com/amabito/veronica-core)): deterministic enforcement of cost, step, and retry limits. Runs local. No dependencies. Guarantees are unconditional.
 
-**Planner** (this repository): decides *what limits to set* and *how to allocate resources*
-across agents, time windows, and competing workloads.
+**OS** (this repository): everything above the engine. Policy planning, budget allocation across agents, cost prediction, organizational governance, and cloud coordination.
 
 ```
-VERONICA Planner
-  - allocation: how much budget does each agent get?
-  - prediction: will this call exceed the ceiling before making it?
-  - arbitration: which agent wins when resources are contested?
-       |
-       | PolicyConfig
-       v
-veronica-core Executor
-  - enforcement: halt / degrade / allow
-  - audit trail: SafetyEvent stream
-       |
-       v
-LLM calls
+Application
+     |
+veronica-core   -- local containment (OSS engine)
+     |
+VERONICA        -- Execution OS (Planner / Cloud / org policy)
+     |
+LLM Providers
 ```
+
+---
+
+## Layers
+
+### veronica-core (Engine)
+- `ExecutionContext` — bounded execution scope
+- `ShieldPipeline` — pre-call enforcement hooks
+- `BudgetEnforcer` — cost ceiling per chain
+- `CircuitBreaker` — failure isolation
+- `AdaptiveBudgetHook` — feedback-based ceiling adjustment
+- Distributed budget (Redis), OTel export, multi-agent containment
+
+Single library. MIT. `pip install veronica-core`. No cloud required.
+
+### VERONICA (OS)
+Built on top of veronica-core. Adds the coordination and governance layer:
+
+- **Planner** — decides what limits to set per agent and workload
+- **Budget allocation** — distributes budget across competing agents
+- **Cost prediction** — estimates spend before LLM calls are made
+- **Arbitration** — resolves contention under shared resource constraints
+- **Org policy engine** — organization-wide containment rules
+- **Dashboard and alerts** — visibility into execution health
+- **Compliance layer** — audit trail and policy enforcement at scale
 
 ---
 
 ## Design Principle
 
-The Planner can be AI-driven, rule-based, or human-operated.
-The Executor's guarantees are unchanged regardless of Planner strategy.
+The engine enforces. The OS decides.
 
-This separation is intentional:
+veronica-core's guarantees are unconditional — they do not depend on VERONICA being present.
+VERONICA extends those guarantees across agents, services, and organizations.
 
-- veronica-core must be deterministic and auditable. Probabilistic components do not belong there.
-- VERONICA can be as adaptive as needed, because it only *proposes* policy — it never *enforces* it.
+This separation is intentional. A probabilistic or adaptive layer must never sit inside the enforcement boundary.
 
 ---
 
 ## Status
 
-Early stage. Implementation begins when `PlannerProtocol` is defined in veronica-core (planned v1.0).
+Early stage.
 
-Tracking: [veronica-core roadmap](https://github.com/amabito/veronica-core#roadmap)
+veronica-core is production-ready ([v0.10.x](https://github.com/amabito/veronica-core)).
+VERONICA OS layers are in design. Implementation begins when `PlannerProtocol` is defined in veronica-core (planned v1.0).
 
 ---
 
 ## Docs
 
 - [PolicyConfig specification](docs/policy-config.md) — the Planner/Executor contract
-
----
-
-## Planned Capabilities
-
-- **Budget allocation** across competing agents (shared pool management)
-- **Cost prediction** from prompt characteristics before LLM calls are made
-- **Arbitration** under resource contention (priority, fairness, deadline-aware)
-- **Policy composition** — combine rule-based and learned policies
-
----
-
-## Relationship to veronica-core
-
-| | veronica-core | veronica |
-|---|---|---|
-| Role | Executor | Planner |
-| Behavior | Deterministic | Adaptive |
-| Dependencies | stdlib + optional extras | ML, statistical models (planned) |
-| Stability | Stable (v1.0 target) | Experimental |
-| Interface | Enforces `PolicyConfig` | Produces `PolicyConfig` |
 
 ---
 

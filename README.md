@@ -40,7 +40,7 @@ LLM Providers
 Single library. MIT. `pip install veronica-core`. No cloud required.
 
 ### VERONICA (OS)
-Built on top of veronica-core. Adds the coordination and governance layer:
+Coordination and governance layer built on veronica-core:
 
 - **Planner** — decides what limits to set per agent and workload
 - **Budget allocation** — distributes budget across competing agents
@@ -59,7 +59,7 @@ The engine enforces. The OS decides.
 veronica-core's guarantees are unconditional — they do not depend on VERONICA being present.
 VERONICA extends those guarantees across agents, services, and organizations.
 
-This separation is intentional. A probabilistic or adaptive layer must never sit inside the enforcement boundary.
+A probabilistic or adaptive layer must never sit inside the enforcement boundary.
 
 ---
 

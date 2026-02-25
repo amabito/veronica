@@ -169,3 +169,38 @@ def test_history_bounded() -> None:
         p.update(_snapshot(node_count=i))
 
     assert len(p._history) == 10
+
+
+def test_to_exec_config_field_mapping() -> None:
+    """to_exec_config maps PolicyConfig fields to ExecutionConfig correctly."""
+    from veronica_core.containment import ExecutionConfig
+
+    p = SimplePlanner(base_ceiling_usd=2.50, default_timeout_ms=45_000)
+    policy = p.create_config(estimated_steps=8)
+    exec_cfg = policy.to_exec_config()
+
+    assert isinstance(exec_cfg, ExecutionConfig)
+    assert exec_cfg.max_cost_usd == policy.ceiling_usd
+    assert exec_cfg.max_steps == policy.ceiling_steps
+    assert exec_cfg.timeout_ms == 45_000
+
+
+def test_to_exec_config_zero_timeout() -> None:
+    """to_exec_config converts falsy timeout_ms to 0 (veronica-core disables timeout)."""
+    from veronica_core.containment import ExecutionConfig
+
+    # PolicyConfig.timeout_ms=None (default when not set) should map to timeout_ms=0
+    import time, uuid
+    policy = PolicyConfig(
+        ceiling_usd=1.0,
+        ceiling_tokens_out=4096,
+        ceiling_steps=20,
+        on_exceed="halt",
+        chain_id=str(uuid.uuid4()),
+        issued_at=time.time(),
+        planner_version="simple/0.1.0",
+        timeout_ms=None,  # explicitly None
+    )
+    exec_cfg = policy.to_exec_config()
+
+    assert exec_cfg.timeout_ms == 0

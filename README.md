@@ -54,6 +54,12 @@ Tracking: [veronica-core roadmap](https://github.com/amabito/veronica-core#roadm
 
 ---
 
+## Docs
+
+- [PolicyConfig specification](docs/policy-config.md) — the Planner/Executor contract
+
+---
+
 ## Planned Capabilities
 
 - **Budget allocation** across competing agents (shared pool management)

@@ -35,7 +35,7 @@ One `SimplePlanner` instance per service. Feed it each request's snapshot after 
 
 ```python
 from veronica_core import ExecutionContext
-from veronica_core.exceptions import ShieldBlockedError
+from veronica_core.shield.errors import ShieldBlockedError
 from veronica.planner import SimplePlanner
 
 # Created once at service startup
@@ -43,10 +43,10 @@ planner = SimplePlanner(base_ceiling_usd=0.50)
 
 
 def handle_request(user_query: str) -> str:
-    config = planner.create_config(estimated_steps=5, priority=50)
+    policy = planner.create_config(estimated_steps=5, priority=50)
 
     try:
-        with ExecutionContext(config=config) as ctx:
+        with ExecutionContext(config=policy.to_exec_config()) as ctx:
             result = ctx.wrap_llm_call(fn=lambda: call_llm(user_query))
             snapshot = ctx.get_graph_snapshot()
     except ShieldBlockedError:
@@ -71,7 +71,7 @@ One `SimplePlanner` per agent session. Create it when the session starts, call `
 
 ```python
 from veronica_core import ExecutionContext
-from veronica_core.exceptions import ShieldBlockedError
+from veronica_core.shield.errors import ShieldBlockedError
 from veronica.planner import SimplePlanner
 
 
@@ -83,24 +83,33 @@ class AgentSession:
         )
 
     def run_step(self, step_fn: callable) -> dict | None:
-        config = self.planner.create_config(estimated_steps=1, priority=50)
+        policy = self.planner.create_config(estimated_steps=1, priority=50)
 
         try:
-            with ExecutionContext(config=config) as ctx:
+            with ExecutionContext(config=policy.to_exec_config()) as ctx:
                 output = ctx.wrap_llm_call(fn=step_fn)
                 snapshot = ctx.get_graph_snapshot()
         except ShieldBlockedError:
-            # Ceiling hit: Planner will tighten on next create_config
-            # Session continues; caller decides whether to proceed
-            self.planner.update(self._empty_halt_snapshot())
+            # Ceiling hit: feed a halt snapshot so Rule 1 tightens the ceiling
+            self.planner.update(self._halt_snapshot())
             return None
 
         self.planner.update(snapshot)
         return output
 
-    def _empty_halt_snapshot(self) -> dict:
-        # Minimal snapshot signaling a halt; exact schema depends on veronica-core version
-        return {"halted": True, "aggregates": {"max_depth": 0, "total_cost_usd": 0.0}}
+    def _halt_snapshot(self) -> dict:
+        # Minimal snapshot with halt_count=1 so SimplePlanner Rule 1 fires
+        return {
+            "chain_id": "halted",
+            "aggregates": {
+                "node_count": 0,
+                "total_cost_usd": 0.0,
+                "max_depth": 0,
+                "halt_count": 1,
+                "fail_count": 0,
+            },
+            "nodes": [],
+        }
 ```
 
 The Planner tracks depth patterns across the session. If the agent starts recursing deeply, Rule 3 activates and forces `on_exceed="halt"` automatically.
@@ -115,7 +124,7 @@ Create the config once, reuse the ceiling values, and call `update()` every N ch
 
 ```python
 from veronica_core import ExecutionContext
-from veronica_core.exceptions import ShieldBlockedError
+from veronica_core.shield.errors import ShieldBlockedError
 from veronica.planner import SimplePlanner
 
 UPDATE_INTERVAL = 10  # Update Planner state every 10 chains
@@ -127,10 +136,10 @@ def process_batch(documents: list[str]) -> list[str | None]:
     pending_snapshots: list[dict] = []
 
     for i, doc in enumerate(documents):
-        config = planner.create_config(estimated_steps=3, priority=50)
+        policy = planner.create_config(estimated_steps=3, priority=50)
 
         try:
-            with ExecutionContext(config=config) as ctx:
+            with ExecutionContext(config=policy.to_exec_config()) as ctx:
                 result = ctx.wrap_llm_call(fn=lambda: summarize(doc))
                 snapshot = ctx.get_graph_snapshot()
                 pending_snapshots.append(snapshot)
@@ -193,10 +202,10 @@ The `ExecutionContext` context manager propagates the exception out of the `with
 ```python
 from veronica_core.exceptions import ShieldBlockedError
 
-config = planner.create_config(estimated_steps=10, priority=50)
+policy = planner.create_config(estimated_steps=10, priority=50)
 
 try:
-    with ExecutionContext(config=config) as ctx:
+    with ExecutionContext(config=policy.to_exec_config()) as ctx:
         ctx.wrap_llm_call(fn=expensive_step)
         ctx.wrap_llm_call(fn=another_step)  # May not be reached
         snapshot = ctx.get_graph_snapshot()

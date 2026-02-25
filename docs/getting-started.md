@@ -39,9 +39,9 @@ from veronica.planner import SimplePlanner
 planner = SimplePlanner(base_ceiling_usd=1.00)
 
 # --- Run 1 ---
-config = planner.create_config(estimated_steps=10, priority=50)
+policy = planner.create_config(estimated_steps=10, priority=50)
 
-with ExecutionContext(config=config) as ctx:
+with ExecutionContext(config=policy.to_exec_config()) as ctx:
     # your agent steps here
     ctx.wrap_llm_call(fn=lambda: call_llm("step 1"))
     ctx.wrap_llm_call(fn=lambda: call_llm("step 2"))
@@ -52,9 +52,9 @@ planner.update(snapshot)
 # Clean run: ceiling rises to $1.05 (Rule 2)
 
 # --- Run 2 ---
-config = planner.create_config(estimated_steps=10, priority=50)
+policy = planner.create_config(estimated_steps=10, priority=50)
 
-with ExecutionContext(config=config) as ctx:
+with ExecutionContext(config=policy.to_exec_config()) as ctx:
     # This run hits the ceiling and halts
     ctx.wrap_llm_call(fn=lambda: expensive_llm_call())
 
@@ -65,11 +65,15 @@ planner.update(snapshot)
 
 # --- Run 3 ---
 # create_config now returns a tighter ceiling ($0.945)
-config = planner.create_config(estimated_steps=10, priority=50)
-print(config.ceiling_usd)  # 0.945
+policy = planner.create_config(estimated_steps=10, priority=50)
+print(policy.ceiling_usd)  # 0.945
 ```
 
 The Planner adjusts without you touching any ceiling value directly. You only call `create_config` and `update`.
+
+> **Phase 1 note:** `policy.to_exec_config()` bridges `PolicyConfig` to veronica-core's `ExecutionConfig`
+> (`ceiling_usd → max_cost_usd`, `ceiling_steps → max_steps`).
+> When `PlannerProtocol` is defined in veronica-core v1.0, `ExecutionContext` will accept `PolicyConfig` directly.
 
 ---
 

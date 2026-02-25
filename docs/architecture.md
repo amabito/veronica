@@ -20,7 +20,7 @@ LLM Providers                              Org Policy / Dashboard /
 
 The Control Plane manages policy and state asynchronously.
 It does not sit between the application and LLM calls.
-This preserves veronica-core's latency guarantees regardless of VERONICA availability.
+veronica-core's latency guarantees hold regardless of VERONICA availability.
 
 ---
 

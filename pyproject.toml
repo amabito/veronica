@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "veronica"
-version = "0.1.0"
+version = "0.2.0"
 description = "Execution OS for LLM systems. Policy planning, budget allocation, and governance built on veronica-core."
 readme = "README.md"
 license = {text = "MIT"}

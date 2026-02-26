@@ -2,7 +2,7 @@
 """VERONICA OS data types -- all frozen dataclasses."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal, Mapping, Sequence
 
 from veronica_core.containment.execution_context import ExecutionConfig
@@ -51,6 +51,13 @@ class HistoryView:
     failure_streak: int
     depth: int
     loop_score: float
+
+    # Phase 2 additions (all with defaults for backward compatibility)
+    success_streak: int = 0
+    cost_per_step_ema: float = 0.0
+    cost_per_step_ema_by_model: Mapping[str, float] = field(default_factory=dict)
+    latency_ema_ms: Mapping[str, float] = field(default_factory=dict)
+    budget_headroom_ratio: float = 1.0
 
 
 @dataclass(frozen=True)

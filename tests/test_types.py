@@ -122,6 +122,34 @@ class TestHistoryView:
         assert len(hv.last_n) == 0
         assert hv.failure_streak == 0
 
+    def test_phase2_fields_have_defaults(self) -> None:
+        """Phase 2 fields must all have defaults for backward compatibility."""
+        hv = HistoryView(
+            chain_id="c1", last_n=(), rolling_cost_usd=0.0,
+            failure_streak=0, depth=0, loop_score=0.0,
+        )
+        assert hv.success_streak == 0
+        assert hv.cost_per_step_ema == 0.0
+        assert hv.cost_per_step_ema_by_model == {}
+        assert hv.latency_ema_ms == {}
+        assert hv.budget_headroom_ratio == 1.0
+
+    def test_phase2_fields_can_be_set(self) -> None:
+        """Phase 2 fields can be explicitly provided."""
+        hv = HistoryView(
+            chain_id="c1", last_n=(), rolling_cost_usd=0.0,
+            failure_streak=0, depth=10, loop_score=0.0,
+            success_streak=5, cost_per_step_ema=0.05,
+            cost_per_step_ema_by_model={"gpt-4": 0.03},
+            latency_ema_ms={"gpt-4": 150.0},
+            budget_headroom_ratio=0.7,
+        )
+        assert hv.success_streak == 5
+        assert hv.cost_per_step_ema == 0.05
+        assert hv.cost_per_step_ema_by_model["gpt-4"] == 0.03
+        assert hv.latency_ema_ms["gpt-4"] == 150.0
+        assert hv.budget_headroom_ratio == 0.7
+
 
 class TestAnalysisResult:
     def test_nominal(self) -> None:

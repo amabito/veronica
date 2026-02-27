@@ -270,3 +270,40 @@ class TestMetricsSubscriber:
             "t6_degrade_total", {"degrade_reason": "other"},
         )
         assert val is None  # not incremented
+
+
+from veronica.structured_log_subscriber import StructuredLogSubscriber
+
+
+class TestStructuredLogSubscriber:
+    def test_json_log_emitted(self, caplog) -> None:
+        """step_completed emits valid JSON log."""
+        sub = StructuredLogSubscriber(logger_name="test.events")
+        with caplog.at_level(logging.INFO, logger="test.events"):
+            sub("step_completed", _sample_payload())
+
+        assert len(caplog.records) == 1
+        record = json.loads(caplog.records[0].message)
+        assert record["event"] == "step_completed"
+        assert record["schema_version"] == 1
+        assert record["status"] == "ok"
+
+    def test_signals_capped_at_16(self, caplog) -> None:
+        """More than 16 signals are truncated in log."""
+        signals = [{"kind": f"sig_{i}", "severity": "info"} for i in range(20)]
+        sub = StructuredLogSubscriber(logger_name="test.cap")
+        with caplog.at_level(logging.INFO, logger="test.cap"):
+            sub("step_completed", _sample_payload(signals=signals))
+
+        record = json.loads(caplog.records[0].message)
+        assert len(record["signals"]) == 16
+
+    def test_empty_payload_no_crash(self, caplog) -> None:
+        """Empty payload does not raise."""
+        sub = StructuredLogSubscriber(logger_name="test.empty")
+        with caplog.at_level(logging.INFO, logger="test.empty"):
+            sub("step_completed", {})
+
+        assert len(caplog.records) == 1
+        record = json.loads(caplog.records[0].message)
+        assert record["event"] == "step_completed"

@@ -189,6 +189,53 @@ class TestTotalSpentUsdThreadSafety:
         assert isinstance(vos._lock, (_threading.Lock().__class__, _threading.RLock().__class__))
 
 
+class TestStepCounterIsolation:
+    """Bug 9: _step_counter must be per-instance, not module-level global."""
+
+    def test_two_instances_have_independent_counters(self) -> None:
+        """Two VeronicaOS instances must not share a step counter."""
+        vos1 = VeronicaOS()
+        vos2 = VeronicaOS()
+
+        # Advance vos1 counter by 5 steps
+        for i in range(5):
+            intent = StepIntent(
+                step_id="", request_id="r1", chain_id="c1",
+                kind="llm", model="gpt-4", tool_name=None,
+                timeout_ms=30_000, metadata={},
+            )
+            normalized = vos1._normalize_intent(intent)
+            # Each call to _normalize_intent with empty step_id generates a new step id
+
+        # vos2 should still start at step-1 (or its own fresh counter)
+        intent2 = StepIntent(
+            step_id="", request_id="r2", chain_id="c2",
+            kind="llm", model="gpt-4", tool_name=None,
+            timeout_ms=30_000, metadata={},
+        )
+        normalized2 = vos2._normalize_intent(intent2)
+        # vos2 counter must be independent from vos1's counter
+        # If they shared a module-level counter, vos2 would get step-6
+        step_num = int(normalized2.step_id.split("-")[1])
+        assert step_num == 1, (
+            f"vos2 should have step-1 (independent counter), got {normalized2.step_id}"
+        )
+
+    def test_instance_counter_increments(self) -> None:
+        """Counter must increment within the same instance."""
+        vos = VeronicaOS()
+        intent = StepIntent(
+            step_id="", request_id="r1", chain_id="c1",
+            kind="llm", model="gpt-4", tool_name=None,
+            timeout_ms=30_000, metadata={},
+        )
+        n1 = vos._normalize_intent(intent)
+        n2 = vos._normalize_intent(intent)
+        num1 = int(n1.step_id.split("-")[1])
+        num2 = int(n2.step_id.split("-")[1])
+        assert num2 == num1 + 1, f"Counter should increment: got {n1.step_id}, {n2.step_id}"
+
+
 class TestExpiresAtWarning:
     """Bug 8: PolicyConfig.expires_at should log a warning when expired."""
 

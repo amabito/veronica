@@ -62,7 +62,6 @@ _KNOWN_STAGES = frozenset({
     "store", "emit",
 })
 
-_step_counter = count(1)
 _DEFAULT_TIMEOUT_MS = 30_000
 
 T = TypeVar("T")
@@ -179,6 +178,7 @@ class VeronicaOS:
         self._total_spent_usd: float = 0.0
         self._chain_spent_usd: dict[str, float] = {}
         self._lock = threading.Lock()
+        self._step_counter = count(1)
 
     @contextmanager
     def step(self, intent: StepIntent) -> Iterator[StepContext]:
@@ -220,7 +220,7 @@ class VeronicaOS:
         if not intent.chain_id:
             changes["chain_id"] = "default"
         if not intent.step_id:
-            changes["step_id"] = f"step-{next(_step_counter)}"
+            changes["step_id"] = f"step-{next(self._step_counter)}"
         if not intent.timeout_ms:
             changes["timeout_ms"] = _DEFAULT_TIMEOUT_MS
         if not intent.metadata:

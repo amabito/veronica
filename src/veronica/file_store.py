@@ -39,6 +39,7 @@ class _ChainStats:
         "failure_streak",
         "total_commits",
         "budget_headroom_ratio",
+        "commits_since_rotate",
     )
 
     def __init__(self) -> None:
@@ -49,6 +50,7 @@ class _ChainStats:
         self.failure_streak: int = 0
         self.total_commits: int = 0
         self.budget_headroom_ratio: float = 1.0
+        self.commits_since_rotate: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -59,6 +61,7 @@ class _ChainStats:
             "failure_streak": self.failure_streak,
             "total_commits": self.total_commits,
             "budget_headroom_ratio": self.budget_headroom_ratio,
+            "commits_since_rotate": self.commits_since_rotate,
         }
 
     @classmethod
@@ -71,6 +74,7 @@ class _ChainStats:
         s.failure_streak = data.get("failure_streak", 0)
         s.total_commits = data.get("total_commits", 0)
         s.budget_headroom_ratio = data.get("budget_headroom_ratio", 1.0)
+        s.commits_since_rotate = data.get("commits_since_rotate", 0)
         return s
 
 
@@ -85,10 +89,12 @@ class FileStore:
         self,
         data_dir: str,
         flush_interval: int = 10,
+        max_lines: int = 10_000,
     ) -> None:
         self._data_dir = Path(data_dir)
         self._data_dir.mkdir(parents=True, exist_ok=True)
         self._flush_interval = flush_interval
+        self._max_lines = max_lines
         self._chain_stats: dict[str, _ChainStats] = {}
         self._budget_ceiling: float | None = None
         self._budget_remaining: float | None = None
@@ -176,6 +182,13 @@ class FileStore:
         if stats.total_commits % self._flush_interval == 0:
             self._flush_stats(chain_id)
 
+        # 5. Rotation check (Rule C: only after successful commit)
+        stats.commits_since_rotate += 1
+        if stats.commits_since_rotate >= self._max_lines:
+            if self._rotate(chain_id):
+                stats.commits_since_rotate = 0
+            # else: rotation failed (Rule D), will retry next commit
+
     def build_history(self, chain_id: str, limit: int = 50) -> HistoryView:
         stats = self._chain_stats.get(chain_id, _ChainStats())
         outcomes = self._load_recent_outcomes(chain_id, limit)
@@ -209,25 +222,50 @@ class FileStore:
         stats_path = self._data_dir / f"{chain_id}_stats.json"
         stats_path.write_text(json.dumps(stats.to_dict()), encoding="utf-8")
 
+    def _rotate(self, chain_id: str) -> bool:
+        """Rotate JSONL: active -> .1 (single generation).
+
+        Returns True on success. On failure (e.g., Windows file lock),
+        logs warning and returns False -- next commit will retry (Rule D).
+        """
+        active = self._data_dir / f"{chain_id}.jsonl"
+        rotated = self._data_dir / f"{chain_id}.1.jsonl"
+        try:
+            if rotated.exists():
+                rotated.unlink()  # Windows: must delete before rename
+            if active.exists():
+                active.rename(rotated)
+            return True
+        except OSError:
+            logger.warning("JSONL rotation failed for %s, will retry", chain_id)
+            return False
+
     def _load_recent_outcomes(self, chain_id: str, limit: int) -> list[StepOutcome]:
-        jsonl_path = self._data_dir / f"{chain_id}.jsonl"
-        if not jsonl_path.exists():
+        active_path = self._data_dir / f"{chain_id}.jsonl"
+        rotated_path = self._data_dir / f"{chain_id}.1.jsonl"
+
+        outcomes = self._read_jsonl_outcomes(active_path)
+        if len(outcomes) < limit and rotated_path.exists():
+            older = self._read_jsonl_outcomes(rotated_path)
+            outcomes = older + outcomes  # older first, then current
+
+        return outcomes[-limit:]
+
+    def _read_jsonl_outcomes(self, path: Path) -> list[StepOutcome]:
+        if not path.exists():
             return []
-        records: list[dict] = []
-        for line in open(jsonl_path, encoding="utf-8"):
+        records: list[StepOutcome] = []
+        for line in open(path, encoding="utf-8"):
             line = line.strip()
             if not line:
                 continue
             try:
-                records.append(json.loads(line))
+                rec = json.loads(line)
             except json.JSONDecodeError:
-                logger.warning("Corrupt JSONL line in %s, skipping", jsonl_path)
+                logger.warning("Corrupt JSONL line in %s, skipping", path)
                 continue
-
-        outcomes: list[StepOutcome] = []
-        for rec in records[-limit:]:
             o = rec["outcome"]
-            outcomes.append(StepOutcome(
+            records.append(StepOutcome(
                 step_id=o["step_id"],
                 request_id=o["request_id"],
                 chain_id=o["chain_id"],
@@ -241,7 +279,7 @@ class FileStore:
                 events=(),
                 timestamp_ms=o["timestamp_ms"],
             ))
-        return outcomes
+        return records
 
     @staticmethod
     def _compute_loop_score(outcomes: tuple[StepOutcome, ...] | list[StepOutcome]) -> float:

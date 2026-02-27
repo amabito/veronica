@@ -239,3 +239,101 @@ class TestFileStore:
         store2 = FileStore(data_dir=str(tmp_path))
         hv = store2.build_history("c1")
         assert hv.budget_headroom_ratio == pytest.approx(0.5)
+
+
+class TestFileStoreRotation:
+    def test_rotation_trigger(self, tmp_path) -> None:
+        """Rotation occurs when commits_since_rotate >= max_lines."""
+        store = FileStore(data_dir=str(tmp_path), max_lines=5)
+        for i in range(6):
+            store.commit(
+                _outcome(step_id=f"s{i}"), _analysis(), _cost_est(),
+                _desired(), _policy(), _meta(),
+            )
+        active = tmp_path / "c1.jsonl"
+        rotated = tmp_path / "c1.1.jsonl"
+        assert active.exists()
+        assert rotated.exists()
+        # Active has 1 line (post-rotation commit)
+        assert len(active.read_text().strip().split("\n")) == 1
+        # Rotated has 5 lines
+        assert len(rotated.read_text().strip().split("\n")) == 5
+
+    def test_post_rotation_history_no_coldstart(self, tmp_path) -> None:
+        """build_history reads both active and rotated files."""
+        store = FileStore(data_dir=str(tmp_path), max_lines=5)
+        for i in range(6):
+            store.commit(
+                _outcome(step_id=f"s{i}"), _analysis(), _cost_est(),
+                _desired(), _policy(), _meta(),
+            )
+        hv = store.build_history("c1")
+        assert hv.depth == 6  # all 6 entries visible
+
+    def test_double_rotation(self, tmp_path) -> None:
+        """Second rotation overwrites .1 file (1 generation only)."""
+        store = FileStore(data_dir=str(tmp_path), max_lines=5)
+        for i in range(12):
+            store.commit(
+                _outcome(step_id=f"s{i}"), _analysis(), _cost_est(),
+                _desired(), _policy(), _meta(),
+            )
+        active = tmp_path / "c1.jsonl"
+        rotated = tmp_path / "c1.1.jsonl"
+        # Active: 2 lines (10 rotated, 11th + 12th in active)
+        assert len(active.read_text().strip().split("\n")) == 2
+        # Rotated: 5 lines (second generation, overwrote first)
+        assert len(rotated.read_text().strip().split("\n")) == 5
+        # Total visible via history
+        hv = store.build_history("c1")
+        assert hv.depth == 7  # 5 from .1 + 2 from active
+
+    def test_rotation_failure_resilience(self, tmp_path, monkeypatch) -> None:
+        """Rename failure logs warning and continues -- next commit retries."""
+        store = FileStore(data_dir=str(tmp_path), max_lines=5)
+        for i in range(4):
+            store.commit(
+                _outcome(step_id=f"s{i}"), _analysis(), _cost_est(),
+                _desired(), _policy(), _meta(),
+            )
+
+        # Make 5th commit trigger rotation, but sabotage rename
+        from pathlib import Path
+        original_rename = Path.rename
+        def failing_rename(self_path, target):
+            raise OSError("simulated Windows lock")
+        monkeypatch.setattr(Path, "rename", failing_rename)
+
+        # Should not raise -- rotation failure is non-fatal
+        store.commit(
+            _outcome(step_id="s4"), _analysis(), _cost_est(),
+            _desired(), _policy(), _meta(),
+        )
+
+        monkeypatch.setattr(Path, "rename", original_rename)
+        # Next commit retries rotation
+        store.commit(
+            _outcome(step_id="s5"), _analysis(), _cost_est(),
+            _desired(), _policy(), _meta(),
+        )
+        rotated = tmp_path / "c1.1.jsonl"
+        assert rotated.exists()
+
+    def test_rotation_stats_persist(self, tmp_path) -> None:
+        """commits_since_rotate persists through close + reload."""
+        store = FileStore(data_dir=str(tmp_path), max_lines=10)
+        for i in range(3):
+            store.commit(
+                _outcome(step_id=f"s{i}"), _analysis(), _cost_est(),
+                _desired(), _policy(), _meta(),
+            )
+        store.close()
+        store2 = FileStore(data_dir=str(tmp_path), max_lines=10)
+        # Continue committing -- rotation should happen at commit 10, not 13
+        for i in range(3, 10):
+            store2.commit(
+                _outcome(step_id=f"s{i}"), _analysis(), _cost_est(),
+                _desired(), _policy(), _meta(),
+            )
+        rotated = tmp_path / "c1.1.jsonl"
+        assert rotated.exists()

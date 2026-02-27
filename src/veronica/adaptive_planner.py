@@ -115,8 +115,8 @@ class AdaptivePlanner:
         # This allows RuleAnalyzer (which emits repeated_failure/depth_anomaly)
         # to produce the correct tightening factor without halt_tighten signals.
         if analysis.signals:
-            max_critical = any(s.severity == "critical" for s in analysis.signals)
-            if max_critical:
+            has_critical_severity = any(s.severity == "critical" for s in analysis.signals)
+            if has_critical_severity:
                 return _HALTED_FACTOR
             return _ERROR_FACTOR
 

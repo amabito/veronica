@@ -135,6 +135,13 @@ class RedisArbiter:
         if not desires:
             return {}
 
+        if len(desires) > 1:
+            logger.warning(
+                "RedisArbiter only processes desires[0]; %d additional desires "
+                "were silently dropped. Issue one desire at a time.",
+                len(desires) - 1,
+            )
+
         desire = desires[0]
         reserve_micro = _to_micro(desire.ceiling_usd)
 

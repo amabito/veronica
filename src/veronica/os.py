@@ -179,6 +179,7 @@ class VeronicaOS:
         self._chain_spent_usd: dict[str, float] = {}
         self._lock = threading.Lock()
         self._step_counter = count(1)
+        self._closed = False
 
     @contextmanager
     def step(self, intent: StepIntent) -> Iterator[StepContext]:
@@ -305,10 +306,14 @@ class VeronicaOS:
         history = self._store.build_history(intent.chain_id)
 
         # 2. CostModel
+        #    Snapshot _last_analysis under lock to avoid reading a partially
+        #    updated reference from a concurrent after_step thread.
+        with self._lock:
+            last_analysis = self._last_analysis
         try:
             cost, elapsed = run_with_budget(
                 lambda: self._cost_model.estimate(
-                    intent, history, self._last_analysis,
+                    intent, history, last_analysis,
                 ),
                 self._budgets.get("cost_model", 10.0),
                 "cost_model",
@@ -324,87 +329,90 @@ class VeronicaOS:
                 model_used="fallback", basis="fallback",
             )
 
-        # 3. Budget state
+        # 3. Budget state + 4. Planner + 5. Arbiter
+        #    Lock scope covers budget read -> plan -> arbitrate to prevent TOCTOU.
+        #    Two threads reading the same remaining and both spending it is a
+        #    budget overrun. The lock serialises the entire budget-sensitive path.
         with self._lock:
             total_spent = self._total_spent_usd
             chain_spent = self._chain_spent_usd.get(intent.chain_id, 0.0)
-        remaining = self._request_budget_usd - total_spent
-        chain_remaining = self._request_budget_usd - chain_spent
-        budget = BudgetState(
-            request_remaining_usd=remaining,
-            chain_remaining_usd=chain_remaining,
-            window_remaining_steps=100,
-        )
-
-        # 4. Planner
-        try:
-            desired, elapsed = run_with_budget(
-                lambda: self._planner.plan(
-                    self._last_analysis, cost, budget,
-                ),
-                self._budgets.get("planner", 30.0),
-                "planner",
-                return_elapsed=True,
-            )
-            stage_times["planner"] = elapsed
-        except TimeBudgetExceeded as e:
-            logger.warning("[VERONICA_OS] %s", e)
-            degraded = True
-            stage_times["planner"] = e.actual_ms
-            desired = DesiredPolicy(
-                chain_id=intent.chain_id,
-                ceiling_usd=min(1.0, remaining),
-                ceiling_steps=100,
-                ceiling_tokens_out=50_000,
-                on_exceed="halt",
-                fallback_model=None,
-                timeout_ms=intent.timeout_ms,
-                priority=50,
+            remaining = self._request_budget_usd - total_spent
+            chain_remaining = self._request_budget_usd - chain_spent
+            budget = BudgetState(
+                request_remaining_usd=remaining,
+                chain_remaining_usd=chain_remaining,
+                window_remaining_steps=100,
             )
 
-        # 4.5 Org policy clamp (post-Planner numerical cap)
-        if self._org_policy is not None:
-            desired = self._org_policy.clamp(desired, intent)
+            # 4. Planner (uses last_analysis snapshot from step 2)
+            try:
+                desired, elapsed = run_with_budget(
+                    lambda: self._planner.plan(
+                        last_analysis, cost, budget,
+                    ),
+                    self._budgets.get("planner", 30.0),
+                    "planner",
+                    return_elapsed=True,
+                )
+                stage_times["planner"] = elapsed
+            except TimeBudgetExceeded as e:
+                logger.warning("[VERONICA_OS] %s", e)
+                degraded = True
+                stage_times["planner"] = e.actual_ms
+                desired = DesiredPolicy(
+                    chain_id=intent.chain_id,
+                    ceiling_usd=min(1.0, remaining),
+                    ceiling_steps=100,
+                    ceiling_tokens_out=50_000,
+                    on_exceed="halt",
+                    fallback_model=None,
+                    timeout_ms=intent.timeout_ms,
+                    priority=50,
+                )
 
-        # Fill chain_id from intent if planner left it empty
-        if not desired.chain_id:
-            desired = DesiredPolicy(
-                chain_id=intent.chain_id,
-                ceiling_usd=desired.ceiling_usd,
-                ceiling_steps=desired.ceiling_steps,
-                ceiling_tokens_out=desired.ceiling_tokens_out,
-                on_exceed=desired.on_exceed,
-                fallback_model=desired.fallback_model,
-                timeout_ms=desired.timeout_ms,
-                priority=desired.priority,
-            )
+            # 4.5 Org policy clamp (post-Planner numerical cap)
+            if self._org_policy is not None:
+                desired = self._org_policy.clamp(desired, intent)
 
-        # 4b. Inject arbitration context for RedisArbiter idempotency
-        if hasattr(self._arbiter, "set_arbitration_context"):
-            self._arbiter.set_arbitration_context(
-                request_id=intent.request_id,
-                step_id=intent.step_id,
-            )
+            # Fill chain_id from intent if planner left it empty
+            if not desired.chain_id:
+                desired = DesiredPolicy(
+                    chain_id=intent.chain_id,
+                    ceiling_usd=desired.ceiling_usd,
+                    ceiling_steps=desired.ceiling_steps,
+                    ceiling_tokens_out=desired.ceiling_tokens_out,
+                    on_exceed=desired.on_exceed,
+                    fallback_model=desired.fallback_model,
+                    timeout_ms=desired.timeout_ms,
+                    priority=desired.priority,
+                )
 
-        # 5. Arbiter
-        try:
-            configs, elapsed = run_with_budget(
-                lambda: self._arbiter.arbitrate([desired], remaining),
-                self._budgets.get("arbiter", 20.0),
-                "arbiter",
-                return_elapsed=True,
-            )
-            stage_times["arbiter"] = elapsed
-        except TimeBudgetExceeded as e:
-            logger.warning("[VERONICA_OS] %s", e)
-            degraded = True
-            stage_times["arbiter"] = e.actual_ms
-            configs = {intent.chain_id: PolicyConfig(
-                chain_id=intent.chain_id,
-                ceiling_usd=desired.ceiling_usd,
-                on_exceed="halt",
-                issued_at=time.time(),
-            )}
+            # 4b. Inject arbitration context for RedisArbiter idempotency
+            if hasattr(self._arbiter, "set_arbitration_context"):
+                self._arbiter.set_arbitration_context(
+                    request_id=intent.request_id,
+                    step_id=intent.step_id,
+                )
+
+            # 5. Arbiter
+            try:
+                configs, elapsed = run_with_budget(
+                    lambda: self._arbiter.arbitrate([desired], remaining),
+                    self._budgets.get("arbiter", 20.0),
+                    "arbiter",
+                    return_elapsed=True,
+                )
+                stage_times["arbiter"] = elapsed
+            except TimeBudgetExceeded as e:
+                logger.warning("[VERONICA_OS] %s", e)
+                degraded = True
+                stage_times["arbiter"] = e.actual_ms
+                configs = {intent.chain_id: PolicyConfig(
+                    chain_id=intent.chain_id,
+                    ceiling_usd=desired.ceiling_usd,
+                    on_exceed="halt",
+                    issued_at=time.time(),
+                )}
 
         policy = configs.get(intent.chain_id, PolicyConfig(
             chain_id=intent.chain_id,
@@ -421,8 +429,8 @@ class VeronicaOS:
             )
 
         meta = DecisionMeta(
-            risk_level=self._last_analysis.risk_level if self._last_analysis else "nominal",
-            recommendation=self._last_analysis.recommendation if self._last_analysis else "continue",
+            risk_level=last_analysis.risk_level if last_analysis else "nominal",
+            recommendation=last_analysis.recommendation if last_analysis else "continue",
             degraded=degraded,
             stage_time_ms=stage_times,
         )
@@ -474,20 +482,24 @@ class VeronicaOS:
                 signals=(), risk_level="nominal", recommendation="continue",
             )
 
-        # 4. Update state
-        self._last_analysis = analysis
+        # 4. Update state + budget context under single lock acquisition.
+        #    _last_analysis write, spend tracking, and budget context snapshot
+        #    must all be atomic to prevent TOCTOU and context leakage.
         with self._lock:
+            self._last_analysis = analysis
             self._total_spent_usd += outcome.cost_usd
             self._chain_spent_usd[outcome.chain_id] = (
                 self._chain_spent_usd.get(outcome.chain_id, 0.0) + outcome.cost_usd
             )
+            budget_remaining = self._request_budget_usd - self._total_spent_usd
+            budget_ceiling = self._request_budget_usd
 
         # 5. Store commit (atomic, timed)
+        #    set_budget_context() uses values captured under lock above.
         if hasattr(self._store, "set_budget_context"):
-            remaining = self._request_budget_usd - self._total_spent_usd
             self._store.set_budget_context(
-                ceiling_usd=self._request_budget_usd,
-                remaining_usd=remaining,
+                ceiling_usd=budget_ceiling,
+                remaining_usd=budget_remaining,
             )
         t0 = time.monotonic()
         self._store.commit(
@@ -541,9 +553,16 @@ class VeronicaOS:
         stage_times["emit"] = (time.monotonic() - t0) * 1000
 
     def close(self) -> None:
-        """Release resources. Flushes store if store supports close()."""
+        """Release resources. Flushes store if store supports close().
+
+        Idempotent: calling close() multiple times is safe (no-op after first).
+        If store.close() raises, _closed is reset so a retry is possible.
+        """
+        if self._closed:
+            return
         if hasattr(self._store, "close"):
             self._store.close()
+        self._closed = True
 
     def __enter__(self) -> "VeronicaOS":
         return self

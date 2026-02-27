@@ -146,3 +146,72 @@ class TestAdaptivePlanner:
         )
         # No signals: fallback to _TIMEOUT_FACTOR (0.90)
         assert result.ceiling_usd == pytest.approx(0.90)
+
+    # --- Adversarial: severity levels and signal ordering ---
+
+    def test_tighten_info_severity_uses_error_factor(self) -> None:
+        """info severity (not critical) should use _ERROR_FACTOR (-15%)."""
+        planner = AdaptivePlanner(base_ceiling_usd=1.0)
+        info_signals = (Signal(kind="some_pattern", severity="info", detail="minor"),)
+        result = planner.plan(
+            _analysis(recommendation="tighten", signals=info_signals),
+            _cost(), _budget(),
+        )
+        # info is not critical, so _ERROR_FACTOR (0.85) applies
+        assert result.ceiling_usd == pytest.approx(0.85)
+
+    def test_tighten_mixed_severity_critical_wins(self) -> None:
+        """When signals have mixed severities, critical must win."""
+        planner = AdaptivePlanner(base_ceiling_usd=1.0)
+        mixed_signals = (
+            Signal(kind="minor_issue", severity="info", detail="low"),
+            Signal(kind="major_issue", severity="warning", detail="medium"),
+            Signal(kind="critical_issue", severity="critical", detail="high"),
+        )
+        result = planner.plan(
+            _analysis(recommendation="tighten", signals=mixed_signals),
+            _cost(), _budget(),
+        )
+        # critical present -> _HALTED_FACTOR (0.50)
+        assert result.ceiling_usd == pytest.approx(0.50)
+
+    def test_tighten_critical_last_in_tuple_still_wins(self) -> None:
+        """Critical signal at end of tuple must still be detected."""
+        planner = AdaptivePlanner(base_ceiling_usd=1.0)
+        signals = (
+            Signal(kind="a", severity="warning", detail="w"),
+            Signal(kind="b", severity="info", detail="i"),
+            Signal(kind="c", severity="critical", detail="c"),
+        )
+        result = planner.plan(
+            _analysis(recommendation="tighten", signals=signals),
+            _cost(), _budget(),
+        )
+        assert result.ceiling_usd == pytest.approx(0.50)
+
+    def test_tighten_warning_only_signals(self) -> None:
+        """All warning signals -> _ERROR_FACTOR (-15%)."""
+        planner = AdaptivePlanner(base_ceiling_usd=1.0)
+        signals = (
+            Signal(kind="a", severity="warning", detail="w1"),
+            Signal(kind="b", severity="warning", detail="w2"),
+        )
+        result = planner.plan(
+            _analysis(recommendation="tighten", signals=signals),
+            _cost(), _budget(),
+        )
+        assert result.ceiling_usd == pytest.approx(0.85)
+
+    def test_halt_tighten_takes_priority_over_severity(self) -> None:
+        """halt_tighten signal must take priority over severity-based fallback."""
+        planner = AdaptivePlanner(base_ceiling_usd=1.0)
+        signals = (
+            Signal(kind="halt_tighten", severity="warning", detail="halt"),
+            Signal(kind="other", severity="critical", detail="loud"),
+        )
+        result = planner.plan(
+            _analysis(recommendation="tighten", signals=signals),
+            _cost(), _budget(),
+        )
+        # halt_tighten with warning -> _ERROR_FACTOR (0.85), NOT _HALTED_FACTOR
+        assert result.ceiling_usd == pytest.approx(0.85)

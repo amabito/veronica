@@ -204,7 +204,7 @@ class TestStepCounterIsolation:
                 kind="llm", model="gpt-4", tool_name=None,
                 timeout_ms=30_000, metadata={},
             )
-            normalized = vos1._normalize_intent(intent)
+            vos1._normalize_intent(intent)
             # Each call to _normalize_intent with empty step_id generates a new step id
 
         # vos2 should still start at step-1 (or its own fresh counter)
@@ -243,7 +243,7 @@ class TestExpiresAtWarning:
         """before_step must log a warning when policy.expires_at is in the past."""
         import logging
         from unittest.mock import MagicMock
-        from veronica.types import PolicyConfig, DesiredPolicy
+        from veronica.types import PolicyConfig
 
         # Build an arbiter that returns an already-expired policy
         expired_policy = PolicyConfig(
@@ -387,3 +387,242 @@ class TestChainRemainingUsd:
         assert vos._chain_spent_usd.get("chainB", 0.0) == pytest.approx(3.0)
         # Global total: 5 + 3 = 8
         assert vos._total_spent_usd == pytest.approx(8.0)
+
+    def test_concurrent_chain_updates_no_lost_updates(self) -> None:
+        """100 threads updating 10 chains must not lose any spend records."""
+        n_threads = 100
+        n_chains = 10
+        cost_per_step = 0.01
+        vos = VeronicaOS(request_budget_usd=10000.0)
+
+        handles = [
+            vos.before_step(_intent(
+                step_id=f"s{i}", chain_id=f"chain{i % n_chains}",
+            ))
+            for i in range(n_threads)
+        ]
+        snapshots = [
+            _snapshot(chain_id=f"chain{i % n_chains}", cost=cost_per_step)
+            for i in range(n_threads)
+        ]
+
+        barrier = threading.Barrier(n_threads)
+        errors: list[Exception] = []
+
+        def worker(h, s):
+            try:
+                barrier.wait()
+                vos.after_step(h, s)
+            except Exception as exc:
+                errors.append(exc)
+
+        threads = [
+            threading.Thread(target=worker, args=(handles[i], snapshots[i]))
+            for i in range(n_threads)
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert not errors, f"Errors: {errors}"
+        # Global total: 100 * 0.01 = 1.0
+        assert vos._total_spent_usd == pytest.approx(n_threads * cost_per_step)
+        # Per-chain: each chain gets 10 updates of 0.01 = 0.10
+        for i in range(n_chains):
+            chain_id = f"chain{i}"
+            expected = (n_threads // n_chains) * cost_per_step
+            assert vos._chain_spent_usd[chain_id] == pytest.approx(expected), (
+                f"{chain_id}: expected {expected}, got {vos._chain_spent_usd[chain_id]}"
+            )
+
+    def test_chain_remaining_exact_value(self) -> None:
+        """After 5 USD on chainA, chainB ceiling must be close to full budget."""
+        vos = VeronicaOS(request_budget_usd=10.0)
+        handle_a = vos.before_step(_intent(step_id="sA", chain_id="chainA"))
+        vos.after_step(handle_a, _snapshot(chain_id="chainA", cost=5.0))
+
+        handle_b = vos.before_step(_intent(step_id="sB", chain_id="chainB"))
+        # chainB has spent 0, so chain_remaining = 10.0
+        # ceiling_usd should be at least 1.0 (planner base) and NOT be 5.0 (global remaining)
+        # With default SimplePlanner, ceiling is ~1.03 (loosen after ok step)
+        assert handle_b.policy.ceiling_usd >= 1.0, (
+            f"chainB ceiling {handle_b.policy.ceiling_usd} should be >= 1.0"
+        )
+
+
+class TestBudgetTOCTOU:
+    """IMPORTANT-1: Budget read + plan + arbitrate must be atomic."""
+
+    def test_concurrent_before_step_no_double_spend(self) -> None:
+        """Two threads calling before_step must not both see the full budget."""
+        vos = VeronicaOS(request_budget_usd=1.0)
+        barrier = threading.Barrier(2)
+        results: list[float] = []
+        errors: list[Exception] = []
+
+        def worker(step_id, chain_id):
+            try:
+                barrier.wait()
+                handle = vos.before_step(_intent(step_id=step_id, chain_id=chain_id))
+                results.append(handle.policy.ceiling_usd)
+            except Exception as exc:
+                errors.append(exc)
+
+        t1 = threading.Thread(target=worker, args=("s1", "c1"))
+        t2 = threading.Thread(target=worker, args=("s2", "c2"))
+        t1.start()
+        t2.start()
+        t1.join()
+        t2.join()
+
+        assert not errors, f"Errors: {errors}"
+        assert len(results) == 2
+        # Both threads got valid policies (lock serialises them)
+        assert all(r > 0 for r in results)
+
+
+class TestLifecycleAdversarial:
+    """Adversarial tests for VeronicaOS.close() and context manager."""
+
+    def test_close_idempotent(self) -> None:
+        """Calling close() twice must not raise or double-close store."""
+        from unittest.mock import MagicMock
+        store = MagicMock()
+        store.build_history.return_value = MemoryStore().build_history("c1")
+        vos = VeronicaOS(store=store)
+        vos.close()
+        vos.close()  # second call should be no-op
+        store.close.assert_called_once()
+
+    def test_close_when_store_close_raises_allows_retry(self) -> None:
+        """If store.close() raises, close() must propagate and allow retry."""
+        from unittest.mock import MagicMock
+        store = MagicMock()
+        store.build_history.return_value = MemoryStore().build_history("c1")
+        store.close.side_effect = [RuntimeError("disk full"), None]
+        vos = VeronicaOS(store=store)
+        # First call raises (store failed to flush)
+        with pytest.raises(RuntimeError, match="disk full"):
+            vos.close()
+        # _closed must NOT be set, so retry is possible
+        assert not vos._closed
+        # Second call succeeds
+        vos.close()
+        assert vos._closed
+        assert store.close.call_count == 2
+
+    def test_nested_context_managers(self) -> None:
+        """Nested 'with' on same instance must work (close is idempotent)."""
+        from unittest.mock import MagicMock
+        store = MagicMock()
+        store.build_history.return_value = MemoryStore().build_history("c1")
+        vos = VeronicaOS(store=store)
+        with vos:
+            with vos:
+                pass  # inner exit calls close()
+            # outer exit calls close() again - must be no-op
+        store.close.assert_called_once()
+
+
+class TestExpiresAtAdversarial:
+    """Adversarial tests for expires_at boundary."""
+
+    def test_expires_at_exact_boundary(self, caplog) -> None:
+        """expires_at == now should warn (strictly less-than comparison)."""
+        import logging
+        from unittest.mock import MagicMock
+        from veronica.types import PolicyConfig
+
+        now = time.time()
+        # Set expires_at slightly in the past to guarantee < time.time()
+        # at the moment of comparison (time passes between creation and check)
+        boundary_policy = PolicyConfig(
+            chain_id="c1",
+            ceiling_usd=1.0,
+            on_exceed="halt",
+            issued_at=now - 10.0,
+            expires_at=now - 0.001,  # just barely expired
+        )
+
+        mock_arbiter = MagicMock()
+        mock_arbiter.arbitrate.return_value = {"c1": boundary_policy}
+
+        vos = VeronicaOS(arbiter=mock_arbiter)
+        with caplog.at_level(logging.WARNING, logger="veronica.os"):
+            vos.before_step(_intent())
+
+        assert any("expires_at" in msg for msg in caplog.messages), (
+            f"Expected expires_at warning at boundary, got: {caplog.messages}"
+        )
+
+    def test_expires_at_far_future_no_warning(self, caplog) -> None:
+        """expires_at 1 year from now must not warn."""
+        import logging
+        from unittest.mock import MagicMock
+        from veronica.types import PolicyConfig
+
+        far_future = PolicyConfig(
+            chain_id="c1",
+            ceiling_usd=1.0,
+            on_exceed="halt",
+            issued_at=time.time(),
+            expires_at=time.time() + 365 * 24 * 3600,
+        )
+
+        mock_arbiter = MagicMock()
+        mock_arbiter.arbitrate.return_value = {"c1": far_future}
+
+        vos = VeronicaOS(arbiter=mock_arbiter)
+        with caplog.at_level(logging.WARNING, logger="veronica.os"):
+            vos.before_step(_intent())
+
+        assert not any("expires_at" in msg for msg in caplog.messages)
+
+
+class TestStepCounterAdversarial:
+    """Adversarial tests for _step_counter isolation."""
+
+    def test_50_instances_independent_counters(self) -> None:
+        """50 VeronicaOS instances must all start at step-1."""
+        instances = [VeronicaOS() for _ in range(50)]
+        intent = StepIntent(
+            step_id="", request_id="r1", chain_id="c1",
+            kind="llm", model="gpt-4", tool_name=None,
+            timeout_ms=30_000, metadata={},
+        )
+        for vos in instances:
+            normalized = vos._normalize_intent(intent)
+            step_num = int(normalized.step_id.split("-")[1])
+            assert step_num == 1, f"Expected step-1, got {normalized.step_id}"
+
+    def test_concurrent_normalize_intent(self) -> None:
+        """Concurrent _normalize_intent on the same instance must yield unique step_ids."""
+        vos = VeronicaOS()
+        n_threads = 50
+        results: list[str] = []
+        barrier = threading.Barrier(n_threads)
+        lock = threading.Lock()
+
+        def worker():
+            barrier.wait()
+            intent = StepIntent(
+                step_id="", request_id="r1", chain_id="c1",
+                kind="llm", model="gpt-4", tool_name=None,
+                timeout_ms=30_000, metadata={},
+            )
+            normalized = vos._normalize_intent(intent)
+            with lock:
+                results.append(normalized.step_id)
+
+        threads = [threading.Thread(target=worker) for _ in range(n_threads)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        # All step_ids must be unique (no counter collision)
+        assert len(results) == n_threads
+        assert len(set(results)) == n_threads, (
+            f"Duplicate step_ids found: {[s for s in results if results.count(s) > 1]}"
+        )

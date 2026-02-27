@@ -241,6 +241,13 @@ class VeronicaOS:
         self._total_spent_usd += outcome.cost_usd
 
         # 5. Store commit (atomic)
+        # Inject budget context for headroom computation
+        if hasattr(self._store, "set_budget_context"):
+            remaining = self._request_budget_usd - self._total_spent_usd
+            self._store.set_budget_context(
+                ceiling_usd=self._request_budget_usd,
+                remaining_usd=remaining,
+            )
         self._store.commit(
             outcome, analysis, handle.cost,
             handle.desired, handle.policy, handle.decision_meta,

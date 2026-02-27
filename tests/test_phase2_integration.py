@@ -133,3 +133,23 @@ class TestPhase2Integration:
         handle = vos.before_step(_intent())
         assert handle.policy.ceiling_usd > 0
         vos.after_step(handle, _snapshot())
+
+    def test_headroom_injected_by_os(self, tmp_path) -> None:
+        """VeronicaOS injects budget context into FileStore."""
+        store = FileStore(data_dir=str(tmp_path))
+        vos = VeronicaOS(
+            analyzer=HistoryAnalyzer(),
+            cost_model=RegressionCostModel(),
+            planner=AdaptivePlanner(),
+            arbiter=ProportionalArbiter(),
+            store=store,
+            request_budget_usd=10.0,
+        )
+
+        handle = vos.before_step(_intent())
+        vos.after_step(handle, _snapshot(cost=1.0))
+
+        hv = store.build_history("c1")
+        # request_budget=10.0, spent=1.0 -> remaining=9.0
+        # headroom = remaining / ceiling (ceiling set by arbiter)
+        assert 0.0 < hv.budget_headroom_ratio < 1.0

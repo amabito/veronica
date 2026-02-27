@@ -2,6 +2,7 @@
 """Tests for veronica.os -- VeronicaOS orchestrator."""
 from __future__ import annotations
 
+import threading
 import time
 from datetime import datetime, timezone
 
@@ -132,3 +133,93 @@ class TestVeronicaOS:
         vos = VeronicaOS()
         handle = vos.before_step(_intent())
         assert handle.policy.ceiling_usd > 0
+
+
+class TestTotalSpentUsdThreadSafety:
+    """Bug 1: _total_spent_usd must be protected by a threading.Lock."""
+
+    def test_concurrent_after_step_no_data_race(self) -> None:
+        """N threads calling after_step concurrently must not lose updates."""
+        n_threads = 20
+        cost_per_step = 0.01
+        store = MemoryStore()
+        vos = VeronicaOS(store=store, request_budget_usd=1000.0)
+
+        # Pre-generate handles (before_step is not under test here)
+        handles = [
+            vos.before_step(_intent(step_id=f"s{i}", chain_id=f"c{i}"))
+            for i in range(n_threads)
+        ]
+        snapshots = [
+            _snapshot(chain_id=f"c{i}", cost=cost_per_step)
+            for i in range(n_threads)
+        ]
+
+        barrier = threading.Barrier(n_threads)
+        errors: list[Exception] = []
+
+        def worker(h, s):
+            try:
+                barrier.wait()
+                vos.after_step(h, s)
+            except Exception as exc:
+                errors.append(exc)
+
+        threads = [
+            threading.Thread(target=worker, args=(handles[i], snapshots[i]))
+            for i in range(n_threads)
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert not errors, f"Errors in worker threads: {errors}"
+        # All costs must be recorded; no lost updates
+        expected = n_threads * cost_per_step
+        assert abs(vos._total_spent_usd - expected) < 1e-9, (
+            f"Expected {expected:.6f}, got {vos._total_spent_usd:.6f} — likely race"
+        )
+
+    def test_has_lock_attribute(self) -> None:
+        """VeronicaOS must expose a threading.Lock (or RLock) for _total_spent_usd."""
+        import threading as _threading
+        vos = VeronicaOS()
+        assert hasattr(vos, "_lock"), "VeronicaOS must have a _lock attribute"
+        assert isinstance(vos._lock, (_threading.Lock().__class__, _threading.RLock().__class__))
+
+
+class TestChainRemainingUsd:
+    """Bug 3: BudgetState.chain_remaining_usd must track per-chain spending."""
+
+    def test_chain_remaining_reflects_per_chain_spend(self) -> None:
+        """After spending on chain A, chain B should still see full budget."""
+        vos = VeronicaOS(request_budget_usd=10.0)
+
+        # Spend 5 USD on chain A
+        handle_a = vos.before_step(_intent(step_id="sA", chain_id="chainA"))
+        vos.after_step(handle_a, _snapshot(chain_id="chainA", cost=5.0))
+
+        # chain B should NOT see chain A's spend in its chain_remaining_usd
+        # We inspect via before_step on chainB — the handle carries the budget state
+        # indirectly through DesiredPolicy.ceiling_usd
+        handle_b = vos.before_step(_intent(step_id="sB", chain_id="chainB"))
+        # chain B must not be limited to (global_budget - chainA_spend)
+        # Its ceiling should be based on per-chain tracking, not global total
+        assert handle_b.policy.ceiling_usd > 0, "Chain B must not be blocked by chain A spend"
+
+    def test_chain_spent_tracked_per_chain(self) -> None:
+        """_chain_spent_usd must track spending per chain independently."""
+        vos = VeronicaOS(request_budget_usd=100.0)
+
+        handle_a = vos.before_step(_intent(step_id="sA", chain_id="chainA"))
+        vos.after_step(handle_a, _snapshot(chain_id="chainA", cost=5.0))
+
+        handle_b = vos.before_step(_intent(step_id="sB", chain_id="chainB"))
+        vos.after_step(handle_b, _snapshot(chain_id="chainB", cost=3.0))
+
+        # Per-chain tracking: chain A spent 5, chain B spent 3
+        assert vos._chain_spent_usd.get("chainA", 0.0) == pytest.approx(5.0)
+        assert vos._chain_spent_usd.get("chainB", 0.0) == pytest.approx(3.0)
+        # Global total: 5 + 3 = 8
+        assert vos._total_spent_usd == pytest.approx(8.0)

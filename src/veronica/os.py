@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 import time
 import uuid
 from contextlib import contextmanager
@@ -176,6 +177,8 @@ class VeronicaOS:
         self._org_policy = org_policy
         self._last_analysis: AnalysisResult | None = None
         self._total_spent_usd: float = 0.0
+        self._chain_spent_usd: dict[str, float] = {}
+        self._lock = threading.Lock()
 
     @contextmanager
     def step(self, intent: StepIntent) -> Iterator[StepContext]:
@@ -322,10 +325,14 @@ class VeronicaOS:
             )
 
         # 3. Budget state
-        remaining = self._request_budget_usd - self._total_spent_usd
+        with self._lock:
+            total_spent = self._total_spent_usd
+            chain_spent = self._chain_spent_usd.get(intent.chain_id, 0.0)
+        remaining = self._request_budget_usd - total_spent
+        chain_remaining = self._request_budget_usd - chain_spent
         budget = BudgetState(
             request_remaining_usd=remaining,
-            chain_remaining_usd=remaining,
+            chain_remaining_usd=chain_remaining,
             window_remaining_steps=100,
         )
 
@@ -462,7 +469,11 @@ class VeronicaOS:
 
         # 4. Update state
         self._last_analysis = analysis
-        self._total_spent_usd += outcome.cost_usd
+        with self._lock:
+            self._total_spent_usd += outcome.cost_usd
+            self._chain_spent_usd[outcome.chain_id] = (
+                self._chain_spent_usd.get(outcome.chain_id, 0.0) + outcome.cost_usd
+            )
 
         # 5. Store commit (atomic, timed)
         if hasattr(self._store, "set_budget_context"):

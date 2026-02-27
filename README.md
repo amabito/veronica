@@ -27,6 +27,36 @@ LLM Providers
 
 ---
 
+## Quickstart: Metrics + Dashboard
+
+```bash
+pip install veronica[metrics]
+```
+
+```python
+from veronica import VeronicaOS, BufferedEmitter, MetricsSubscriber
+from veronica.metrics_exporter import start_metrics_server
+
+start_metrics_server()  # :9464/metrics
+emitter = BufferedEmitter()
+emitter.subscribe("prometheus", MetricsSubscriber())
+vos = VeronicaOS(emitter=emitter)
+```
+
+```bash
+cd deploy/ && docker compose up -d
+```
+
+| Service    | URL                        |
+|------------|----------------------------|
+| Metrics    | http://127.0.0.1:9464/metrics |
+| Prometheus | http://127.0.0.1:9090      |
+| Grafana    | http://127.0.0.1:3000      |
+
+**Grafana and Prometheus bind to 127.0.0.1 only. Do NOT expose to public networks.** Anonymous viewer access is enabled for local use; if you deploy externally, disable `GF_AUTH_ANONYMOUS_ENABLED` and set a strong admin password.
+
+---
+
 ## Layers
 
 ### veronica-core (Engine)
@@ -67,7 +97,9 @@ A probabilistic or adaptive layer must never sit inside the enforcement boundary
 
 veronica-core is [v1.0](https://github.com/amabito/veronica-core/releases/tag/v1.0.0). Engine is stable.
 
-OS layers are in design. Next step: `PlannerProtocol` definition and the PolicyConfig executor bridge.
+| v0.5.0 | Phase 5 | Grafana Dashboard: metrics exporter, docker-compose provisioning, 5-panel dashboard |
+
+**Current:** v0.5.0 -- 201 tests, 93% coverage. Protocol interfaces stable since v0.1.0.
 
 ---
 

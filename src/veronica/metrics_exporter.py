@@ -24,6 +24,12 @@ def start_metrics_server(
 
     Returns True if server started, False if prometheus_client is
     not installed or server was already started.
+
+    Note: The double-start guard is per-process only (module-level flag).
+    In multi-process deployments (gunicorn, uvicorn with workers), each
+    worker process will start its own server. Use ``VERONICA_METRICS_PORT``
+    or the ``port`` argument to assign distinct ports per worker, or run a
+    single dedicated metrics process.
     """
     global _started
     if _started:

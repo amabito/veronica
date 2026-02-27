@@ -55,6 +55,9 @@ packages = ["src/veronica"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+markers = [
+    "docker: requires Docker Compose (deselect with -m 'not docker')",
+]
 
 [tool.coverage.run]
 source = ["veronica"]

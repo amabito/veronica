@@ -35,6 +35,7 @@ requires_docker = pytest.mark.skipif(
     not _compose_available(),
     reason="Docker Compose not available",
 )
+docker_marker = pytest.mark.docker
 
 
 def _poll(url, predicate, timeout=30, interval=1):
@@ -73,6 +74,7 @@ def compose_up():
 
 
 @requires_docker
+@docker_marker
 class TestDashboardSmoke:
     def test_grafana_health(self, compose_up) -> None:
         """Grafana /api/health returns 200 with database ok."""

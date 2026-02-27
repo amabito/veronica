@@ -98,8 +98,9 @@ A probabilistic or adaptive layer must never sit inside the enforcement boundary
 veronica-core is [v1.0](https://github.com/amabito/veronica-core/releases/tag/v1.0.0). Engine is stable.
 
 | v0.5.0 | Phase 5 | Grafana Dashboard: metrics exporter, docker-compose provisioning, 5-panel dashboard |
+| v0.6.0 | Phase 6b | LLM integration adapter: `step()` context manager, `run_step()` sugar |
 
-**Current:** v0.5.0 -- 201 tests, 93% coverage. Protocol interfaces stable since v0.1.0.
+**Current:** v0.6.0 -- 216 tests, 93% coverage. Protocol interfaces stable since v0.1.0.
 
 ---
 

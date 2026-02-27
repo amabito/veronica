@@ -307,3 +307,45 @@ class TestStructuredLogSubscriber:
         assert len(caplog.records) == 1
         record = json.loads(caplog.records[0].message)
         assert record["event"] == "step_completed"
+
+
+class TestObservabilityIntegration:
+    def test_full_pipeline_with_subscribers(self, tmp_path, caplog) -> None:
+        """VeronicaOS + BufferedEmitter + both subscribers."""
+        emitter = BufferedEmitter()
+        ms, reg = _metrics("int")
+        log_sub = StructuredLogSubscriber(logger_name="test.int")
+
+        emitter.subscribe("prometheus", ms)
+        emitter.subscribe("structured_log", log_sub)
+
+        vos = VeronicaOS(
+            analyzer=HistoryAnalyzer(),
+            cost_model=RegressionCostModel(),
+            planner=AdaptivePlanner(),
+            arbiter=ProportionalArbiter(),
+            emitter=emitter,
+            store=FileStore(data_dir=str(tmp_path)),
+        )
+
+        with caplog.at_level(logging.INFO, logger="test.int"):
+            for i in range(3):
+                handle = vos.before_step(_intent(step_id=f"s{i}"))
+                vos.after_step(handle, _snapshot(cost=0.01))
+
+        # Verify metrics
+        val = reg.get_sample_value(
+            "int_steps_total",
+            {"status": "ok", "kind": "llm",
+             "recommendation": "continue", "risk_level": "nominal"},
+        )
+        assert val == 3.0
+
+        cost = reg.get_sample_value("int_cost_microusd_total")
+        assert cost == 30_000.0  # 3 * 0.01 * 1_000_000
+
+        # Verify logs
+        assert len(caplog.records) == 3
+        for rec in caplog.records:
+            parsed = json.loads(rec.message)
+            assert parsed["schema_version"] == 1

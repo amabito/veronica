@@ -271,6 +271,19 @@ class TestMetricsSubscriber:
         )
         assert val is None  # not incremented
 
+    def test_double_instantiation_default_registry_no_raise(self) -> None:
+        """Instantiating MetricsSubscriber twice with the same prefix must not raise.
+
+        Both instances share the same Counter/Histogram objects from the
+        default REGISTRY (prometheus_client deduplicates by name).
+        """
+        reg = CollectorRegistry()
+        ms1 = MetricsSubscriber("dup", registry=reg)
+        ms2 = MetricsSubscriber("dup", registry=reg)  # must not raise
+        # Both instances share identical metric objects
+        assert ms1.steps_total is ms2.steps_total
+        assert ms1.cost_total is ms2.cost_total
+
 
 from veronica.structured_log_subscriber import StructuredLogSubscriber
 

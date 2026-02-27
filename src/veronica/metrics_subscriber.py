@@ -23,37 +23,62 @@ class MetricsSubscriber:
 
     All payload values are accessed defensively via .get() with
     try/except guards. Missing or malformed values are silently skipped.
+
+    Args:
+        prefix: Metric name prefix (default: "veronica").
+        registry: Prometheus CollectorRegistry to register metrics into.
+            Defaults to the global REGISTRY. Pass an isolated
+            CollectorRegistry in tests to avoid double-registration errors.
     """
 
-    def __init__(self, prefix: str = "veronica") -> None:
-        from prometheus_client import Counter, Histogram
+    def __init__(
+        self,
+        prefix: str = "veronica",
+        registry: "CollectorRegistry | None" = None,
+    ) -> None:
+        from prometheus_client import CollectorRegistry, Counter, Histogram, REGISTRY
 
-        self.steps_total = Counter(
+        registry = registry or REGISTRY
+
+        self.steps_total = self._get_or_create(
+            registry, Counter,
             f"{prefix}_steps_total",
             "Total steps executed",
             ["status", "kind", "recommendation", "risk_level"],
         )
-        self.step_elapsed = Histogram(
+        self.step_elapsed = self._get_or_create(
+            registry, Histogram,
             f"{prefix}_step_elapsed_ms",
             "Step elapsed time in ms",
             ["kind"],
             buckets=[10, 50, 100, 500, 1000, 5000, 10000],
         )
-        self.stage_elapsed = Histogram(
+        self.stage_elapsed = self._get_or_create(
+            registry, Histogram,
             f"{prefix}_stage_elapsed_ms",
             "Pipeline stage elapsed time in ms",
             ["stage"],
             buckets=[1, 5, 10, 20, 50, 100, 250, 500, 1000, 5000],
         )
-        self.cost_total = Counter(
+        self.cost_total = self._get_or_create(
+            registry, Counter,
             f"{prefix}_cost_microusd_total",
             "Total cost in microusd (1 USD = 1,000,000)",
         )
-        self.degrade_total = Counter(
+        self.degrade_total = self._get_or_create(
+            registry, Counter,
             f"{prefix}_degrade_total",
             "Total degraded steps",
             ["degrade_reason"],
         )
+
+    @staticmethod
+    def _get_or_create(registry, cls, name, documentation, labelnames=(), **kwargs):
+        """Return existing collector if already registered, else create it."""
+        existing = registry._names_to_collectors.get(name)
+        if existing is not None:
+            return existing
+        return cls(name, documentation, labelnames, registry=registry, **kwargs)
 
     def __call__(
         self, event_type: str, payload: Mapping[str, Any],

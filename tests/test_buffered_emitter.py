@@ -2,6 +2,9 @@
 """Tests for veronica.buffered_emitter -- ring buffer event emitter."""
 from __future__ import annotations
 
+import threading
+import time
+
 import pytest
 
 from veronica.buffered_emitter import BufferedEmitter
@@ -77,3 +80,90 @@ class TestBufferedEmitter:
 
         emitter = BufferedEmitter()
         assert isinstance(emitter, EventEmitterProtocol)
+
+
+class TestBufferedEmitterThreadSafety:
+    def test_concurrent_emit(self) -> None:
+        """10 threads emit simultaneously -- no data corruption."""
+        emitter = BufferedEmitter()
+        barrier = threading.Barrier(10)
+
+        def worker(idx: int) -> None:
+            barrier.wait()
+            emitter.emit("e", {"idx": idx})
+
+        threads = [threading.Thread(target=worker, args=(i,)) for i in range(10)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        events = emitter.snapshot()
+        assert len(events) == 10
+        indices = sorted(e[1]["idx"] for e in events)
+        assert indices == list(range(10))
+
+    def test_reentrant_emit_from_subscriber(self) -> None:
+        """Subscriber calling emit() inside callback -- no deadlock."""
+        emitter = BufferedEmitter()
+        inner_called = threading.Event()
+
+        def reentrant_callback(et: str, p: dict) -> None:
+            if et == "outer":
+                emitter.emit("inner", {"from": "callback"})
+                inner_called.set()
+
+        emitter.subscribe("reentrant", reentrant_callback)
+        emitter.emit("outer", {})
+
+        assert inner_called.is_set()
+        events = emitter.snapshot()
+        types = [e[0] for e in events]
+        assert "outer" in types
+        assert "inner" in types
+
+    def test_slow_subscriber_does_not_block_others(self) -> None:
+        """Slow subscriber doesn't prevent other subscribers from being called."""
+        emitter = BufferedEmitter()
+        fast_received = threading.Event()
+
+        def slow_callback(et: str, p: dict) -> None:
+            time.sleep(0.1)
+
+        def fast_callback(et: str, p: dict) -> None:
+            fast_received.set()
+
+        emitter.subscribe("slow", slow_callback)
+        emitter.subscribe("fast", fast_callback)
+        emitter.emit("test", {})
+
+        assert fast_received.is_set()
+
+    def test_subscribe_during_emit(self) -> None:
+        """subscribe/unsubscribe from another thread during emit -- no crash."""
+        emitter = BufferedEmitter()
+        results: list[bool] = []
+
+        def slow_callback(et: str, p: dict) -> None:
+            time.sleep(0.05)
+
+        emitter.subscribe("slow", slow_callback)
+
+        def subscribe_thread() -> None:
+            time.sleep(0.01)  # mid-emit
+            emitter.subscribe("late", lambda et, p: None)
+            results.append(True)
+
+        t = threading.Thread(target=subscribe_thread)
+        t.start()
+        emitter.emit("test", {})
+        t.join()
+
+        assert results == [True]
+
+    def test_fatal_exception_propagates(self) -> None:
+        """SystemExit/KeyboardInterrupt from subscriber propagates."""
+        emitter = BufferedEmitter()
+        emitter.subscribe("fatal", lambda et, p: (_ for _ in ()).throw(KeyboardInterrupt))
+        with pytest.raises(KeyboardInterrupt):
+            emitter.emit("test", {})

@@ -15,31 +15,46 @@ _MAX_CONSECUTIVE_FAILURES = 3
 class BufferedEmitter:
     """Phase 2 event emitter with ring buffer and subscriber management.
 
-    Events are stored in a bounded deque. Subscribers receive synchronous
-    callbacks. After 3 consecutive failures, a subscriber is auto-removed.
+    Thread-safe. Lock protects internal state only; subscriber callbacks
+    execute outside the lock. Subscribers are assumed to be few (< 50).
+
+    Re-entrancy: Subscribers may call emit() from within their callback
+    without deadlock. Infinite recursion is the caller's responsibility.
     """
 
     def __init__(self, maxlen: int = 1024) -> None:
         self._buffer: deque[tuple[str, Mapping[str, Any]]] = deque(maxlen=maxlen)
         self._subscribers: dict[str, Callable[[str, Mapping[str, Any]], None]] = {}
         self._fail_counts: dict[str, int] = {}
+        self._lock = threading.Lock()
 
     def emit(self, event_type: str, payload: Mapping[str, Any]) -> None:
-        assert threading.current_thread() is threading.main_thread(), (
-            "BufferedEmitter.emit() must be called from the main thread"
-        )
-        self._buffer.append((event_type, payload))
-        for name in list(self._subscribers):
-            callback = self._subscribers.get(name)
-            if callback is None:
-                continue
+        with self._lock:
+            self._buffer.append((event_type, payload))
+            targets = list(self._subscribers.items())
+
+        local_resets: list[str] = []
+        local_removals: list[str] = []
+
+        for name, callback in targets:
             try:
                 callback(event_type, payload)
-                self._fail_counts[name] = 0
+                local_resets.append(name)
+            except (SystemExit, KeyboardInterrupt):
+                raise
             except Exception:
-                count = self._fail_counts.get(name, 0) + 1
-                self._fail_counts[name] = count
-                if count >= _MAX_CONSECUTIVE_FAILURES:
+                with self._lock:
+                    count = self._fail_counts.get(name, 0) + 1
+                    self._fail_counts[name] = count
+                    if count >= _MAX_CONSECUTIVE_FAILURES:
+                        local_removals.append(name)
+
+        if local_resets or local_removals:
+            with self._lock:
+                for name in local_resets:
+                    if name in self._fail_counts:
+                        self._fail_counts[name] = 0
+                for name in local_removals:
                     self._subscribers.pop(name, None)
                     self._fail_counts.pop(name, None)
                     logger.warning(
@@ -53,18 +68,22 @@ class BufferedEmitter:
         name: str,
         callback: Callable[[str, Mapping[str, Any]], None],
     ) -> None:
-        self._subscribers[name] = callback
-        self._fail_counts[name] = 0
+        with self._lock:
+            self._subscribers[name] = callback
+            self._fail_counts[name] = 0
 
     def unsubscribe(self, name: str) -> None:
-        self._subscribers.pop(name, None)
-        self._fail_counts.pop(name, None)
+        with self._lock:
+            self._subscribers.pop(name, None)
+            self._fail_counts.pop(name, None)
 
     def drain(self, n: int) -> list[tuple[str, Mapping[str, Any]]]:
-        result: list[tuple[str, Mapping[str, Any]]] = []
-        for _ in range(min(n, len(self._buffer))):
-            result.append(self._buffer.popleft())
+        with self._lock:
+            result: list[tuple[str, Mapping[str, Any]]] = []
+            for _ in range(min(n, len(self._buffer))):
+                result.append(self._buffer.popleft())
         return result
 
     def snapshot(self) -> list[tuple[str, Mapping[str, Any]]]:
-        return list(self._buffer)
+        with self._lock:
+            return list(self._buffer)

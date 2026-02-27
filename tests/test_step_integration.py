@@ -79,3 +79,99 @@ class TestFallbackSnapshot:
         collector = SimpleCollector()
         outcome = collector.collect(snapshot)
         assert outcome.chain_id == "c1"
+
+
+from unittest.mock import MagicMock
+
+from veronica_core.containment.execution_context import ExecutionContext, ExecutionConfig
+from veronica_core.shield.hooks import Decision
+
+from veronica.os import StepContext
+from veronica.types import PolicyConfig, StepHandle, CostEstimate, DesiredPolicy, DecisionMeta
+
+
+def _make_handle(kind: str = "llm") -> StepHandle:
+    intent = StepIntent(
+        step_id="s1", request_id="r1", chain_id="c1",
+        kind=kind, model="gpt-4", tool_name=None,
+        timeout_ms=30_000, metadata={},
+    )
+    policy = PolicyConfig(
+        chain_id="c1", ceiling_usd=1.0, on_exceed="halt", issued_at=time.time(),
+    )
+    desired = DesiredPolicy(
+        chain_id="c1", ceiling_usd=1.0, ceiling_steps=100,
+        ceiling_tokens_out=50_000, on_exceed="halt",
+        fallback_model=None, timeout_ms=30_000, priority=50,
+    )
+    cost = CostEstimate(
+        estimated_usd=0.01, confidence=0.9, model_used="gpt-4", basis="pricing_table",
+    )
+    meta = DecisionMeta(
+        risk_level="nominal", recommendation="continue",
+        degraded=False, stage_time_ms={},
+    )
+    return StepHandle(intent=intent, policy=policy, desired=desired, cost=cost, decision_meta=meta)
+
+
+class TestStepContext:
+    def test_run_dispatches_llm_for_llm_kind(self) -> None:
+        """run() calls wrap_llm_call for kind='llm'."""
+        handle = _make_handle(kind="llm")
+        mock_ctx = MagicMock(spec=ExecutionContext)
+        mock_ctx.wrap_llm_call.return_value = Decision.ALLOW
+        step_ctx = StepContext(handle=handle, exec_ctx=mock_ctx)
+
+        result = step_ctx.run(lambda: "llm_result")
+        mock_ctx.wrap_llm_call.assert_called_once()
+        mock_ctx.wrap_tool_call.assert_not_called()
+
+    def test_run_dispatches_tool_for_tool_kind(self) -> None:
+        """run() calls wrap_tool_call for kind='tool'."""
+        handle = _make_handle(kind="tool")
+        mock_ctx = MagicMock(spec=ExecutionContext)
+        mock_ctx.wrap_tool_call.return_value = Decision.ALLOW
+        step_ctx = StepContext(handle=handle, exec_ctx=mock_ctx)
+
+        result = step_ctx.run(lambda: "tool_result")
+        mock_ctx.wrap_tool_call.assert_called_once()
+        mock_ctx.wrap_llm_call.assert_not_called()
+
+    def test_run_dispatches_llm_for_system_kind(self) -> None:
+        """run() calls wrap_llm_call for kind='system' (no wrap_system_call in core)."""
+        handle = _make_handle(kind="system")
+        mock_ctx = MagicMock(spec=ExecutionContext)
+        mock_ctx.wrap_llm_call.return_value = Decision.ALLOW
+        step_ctx = StepContext(handle=handle, exec_ctx=mock_ctx)
+
+        result = step_ctx.run(lambda: "system_result")
+        mock_ctx.wrap_llm_call.assert_called_once()
+
+    def test_run_llm_calls_wrap_llm_call(self) -> None:
+        """run_llm() directly calls wrap_llm_call."""
+        handle = _make_handle()
+        mock_ctx = MagicMock(spec=ExecutionContext)
+        mock_ctx.wrap_llm_call.return_value = Decision.ALLOW
+        step_ctx = StepContext(handle=handle, exec_ctx=mock_ctx)
+
+        step_ctx.run_llm(lambda: "x")
+        mock_ctx.wrap_llm_call.assert_called_once()
+
+    def test_run_tool_calls_wrap_tool_call(self) -> None:
+        """run_tool() directly calls wrap_tool_call."""
+        handle = _make_handle()
+        mock_ctx = MagicMock(spec=ExecutionContext)
+        mock_ctx.wrap_tool_call.return_value = Decision.ALLOW
+        step_ctx = StepContext(handle=handle, exec_ctx=mock_ctx)
+
+        step_ctx.run_tool(lambda: "x")
+        mock_ctx.wrap_tool_call.assert_called_once()
+
+    def test_policy_property(self) -> None:
+        """policy property returns the handle's policy."""
+        handle = _make_handle()
+        mock_ctx = MagicMock(spec=ExecutionContext)
+        step_ctx = StepContext(handle=handle, exec_ctx=mock_ctx)
+
+        assert step_ctx.policy is handle.policy
+        assert step_ctx.policy.ceiling_usd == 1.0

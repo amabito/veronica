@@ -214,3 +214,78 @@ class TestAtomicity:
         # 50 + 5*(10-8) = 50 + 10 = 60
         remaining = int(arbiter._redis.get("veronica:test:budget:remaining"))
         assert remaining == _to_micro(60.0)
+
+
+from datetime import datetime, timezone
+
+from veronica_core.containment.execution_context import ContextSnapshot, NodeRecord
+
+from veronica.adaptive_planner import AdaptivePlanner
+from veronica.file_store import FileStore
+from veronica.history_analyzer import HistoryAnalyzer
+from veronica.os import VeronicaOS
+from veronica.regression_cost_model import RegressionCostModel
+from veronica.types import StepIntent
+
+
+def _intent(
+    step_id: str = "s1",
+    request_id: str = "r1",
+    chain_id: str = "c1",
+    model: str = "gpt-4",
+) -> StepIntent:
+    return StepIntent(
+        step_id=step_id, request_id=request_id, chain_id=chain_id,
+        kind="llm", model=model, tool_name=None,
+        timeout_ms=30_000, metadata={},
+    )
+
+
+def _snapshot(
+    chain_id: str = "c1",
+    cost: float = 0.01,
+    status: str = "ok",
+) -> ContextSnapshot:
+    node = NodeRecord(
+        node_id="n1", parent_id=None, kind="llm",
+        operation_name="test_op",
+        start_ts=datetime.now(timezone.utc),
+        end_ts=datetime.now(timezone.utc),
+        status=status, cost_usd=cost, retries_used=0,
+    )
+    return ContextSnapshot(
+        chain_id=chain_id, request_id="r1", step_count=1,
+        cost_usd_accumulated=cost, retries_used=0,
+        aborted=False, abort_reason=None,
+        elapsed_ms=100.0, nodes=[node], events=[],
+    )
+
+
+class TestIntegration:
+    def test_full_pipeline_with_redis_arbiter(
+        self, arbiter: RedisArbiter, tmp_path,
+    ) -> None:
+        """VeronicaOS with RedisArbiter: before_step + after_step."""
+        vos = VeronicaOS(
+            analyzer=HistoryAnalyzer(),
+            cost_model=RegressionCostModel(),
+            planner=AdaptivePlanner(),
+            arbiter=arbiter,
+            store=FileStore(data_dir=str(tmp_path)),
+            request_budget_usd=100.0,
+        )
+
+        handle = vos.before_step(_intent(step_id="s1", request_id="r1"))
+        assert handle.policy.ceiling_usd > 0
+        vos.after_step(handle, _snapshot(cost=0.01))
+
+        # Verify Redis budget was updated
+        remaining = int(arbiter._redis.get("veronica:test:budget:remaining"))
+        assert remaining < _to_micro(100.0)
+
+    def test_backward_compat_default_os(self) -> None:
+        """Default VeronicaOS (no RedisArbiter) still works."""
+        vos = VeronicaOS()
+        handle = vos.before_step(_intent())
+        assert handle.policy.ceiling_usd > 0
+        vos.after_step(handle, _snapshot())

@@ -7,8 +7,10 @@ from veronica.file_store import FileStore
 from veronica.history_analyzer import HistoryAnalyzer
 from veronica.os import VeronicaOS
 from veronica.proportional_arbiter import ProportionalArbiter
+from veronica.metrics_subscriber import MetricsSubscriber
 from veronica.redis_arbiter import RedisArbiter
 from veronica.regression_cost_model import RegressionCostModel
+from veronica.structured_log_subscriber import StructuredLogSubscriber
 from veronica.types import (
     AnalysisResult,
     BudgetState,
@@ -23,7 +25,7 @@ from veronica.types import (
     StepOutcome,
 )
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 __all__ = [
     # Core
@@ -37,6 +39,9 @@ __all__ = [
     "RegressionCostModel",
     # Phase 3 components
     "RedisArbiter",
+    # Phase 4 components
+    "MetricsSubscriber",
+    "StructuredLogSubscriber",
     # Types
     "AnalysisResult",
     "BudgetState",

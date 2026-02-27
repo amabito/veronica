@@ -39,9 +39,13 @@ dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
     "fakeredis[lua]>=2.0",
+    "prometheus-client>=0.20",
 ]
 redis = [
     "redis[hiredis]>=5.0",
+]
+metrics = [
+    "prometheus-client>=0.20",
 ]
 
 [tool.hatch.build.targets.wheel]

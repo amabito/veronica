@@ -119,6 +119,7 @@ class DecisionMeta:
     recommendation: str
     degraded: bool
     stage_time_ms: Mapping[str, float]
+    org_denial: str | None = None
 
 
 # --- PolicyConfig: the contract between OS and Engine ---
@@ -184,3 +185,61 @@ class StepHandle:
     desired: DesiredPolicy
     cost: CostEstimate
     decision_meta: DecisionMeta
+
+
+@dataclass(frozen=True)
+class OrgPolicy:
+    """Organization-wide containment rules.
+
+    Injected into VeronicaOS. Constrains what Planner can decide.
+    validate() blocks forbidden intents before Planner runs.
+    clamp() caps DesiredPolicy after Planner runs.
+    """
+
+    max_ceiling_usd: float | None = None
+    max_timeout_ms: int | None = None
+    blocked_models: frozenset[str] = field(default_factory=frozenset)
+    blocked_tools: frozenset[str] = field(default_factory=frozenset)
+    max_priority: int | None = None
+    _blocked_models_cf: frozenset[str] = field(init=False, repr=False, compare=False)
+    _blocked_tools_cf: frozenset[str] = field(init=False, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "_blocked_models_cf",
+            frozenset(m.casefold() for m in self.blocked_models),
+        )
+        object.__setattr__(
+            self, "_blocked_tools_cf",
+            frozenset(t.casefold() for t in self.blocked_tools),
+        )
+
+    def validate(self, intent: StepIntent) -> str | None:
+        """Return denial reason if intent violates org policy, else None."""
+        if intent.model and intent.model.casefold() in self._blocked_models_cf:
+            return f"model '{intent.model}' is blocked by org policy"
+        if intent.tool_name and intent.tool_name.casefold() in self._blocked_tools_cf:
+            return f"tool '{intent.tool_name}' is blocked by org policy"
+        return None
+
+    def clamp(self, desired: DesiredPolicy, intent: StepIntent) -> DesiredPolicy:
+        """Cap DesiredPolicy fields to org limits. Returns new instance if changed."""
+        changes: dict[str, Any] = {}
+
+        if self.max_ceiling_usd is not None and desired.ceiling_usd > self.max_ceiling_usd:
+            changes["ceiling_usd"] = self.max_ceiling_usd
+        if self.max_timeout_ms is not None and desired.timeout_ms > self.max_timeout_ms:
+            changes["timeout_ms"] = self.max_timeout_ms
+        if self.max_priority is not None and desired.priority > self.max_priority:
+            changes["priority"] = self.max_priority
+        if (
+            desired.fallback_model
+            and desired.fallback_model.casefold() in self._blocked_models_cf
+        ):
+            changes["fallback_model"] = None
+
+        if not changes:
+            return desired
+
+        from dataclasses import replace
+        return replace(desired, **changes)

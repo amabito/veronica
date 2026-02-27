@@ -6,7 +6,7 @@ from typing import Any, Mapping
 
 _KNOWN_STAGES = frozenset({
     "collector", "analyzer", "cost_model", "planner", "arbiter",
-    "store", "emit",
+    "store", "emit", "org_policy",
 })
 
 _MICRO = 1_000_000
@@ -71,6 +71,12 @@ class MetricsSubscriber:
             "Total degraded steps",
             ["degrade_reason"],
         )
+        self.denied_total = self._get_or_create(
+            registry, Counter,
+            f"{prefix}_denied_total",
+            "Steps denied by org policy",
+            ["kind"],
+        )
 
     @staticmethod
     def _get_or_create(registry, cls, name, documentation, labelnames=(), **kwargs):
@@ -84,9 +90,16 @@ class MetricsSubscriber:
         self, event_type: str, payload: Mapping[str, Any],
     ) -> None:
         """Callback for BufferedEmitter.subscribe()."""
-        if event_type != "step_completed":
-            return
+        if event_type == "step_completed":
+            self._handle_step_completed(payload)
+        elif event_type == "step_denied":
+            self._handle_step_denied(payload)
 
+    def _handle_step_denied(self, payload: Mapping[str, Any]) -> None:
+        kind = payload.get("kind", "unknown")
+        self.denied_total.labels(kind=kind).inc()
+
+    def _handle_step_completed(self, payload: Mapping[str, Any]) -> None:
         self.steps_total.labels(
             status=payload.get("status", "unknown"),
             kind=payload.get("kind", "unknown"),

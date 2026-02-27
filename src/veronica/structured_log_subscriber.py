@@ -36,13 +36,30 @@ class StructuredLogSubscriber:
         self, event_type: str, payload: Mapping[str, Any],
     ) -> None:
         """Callback for BufferedEmitter.subscribe()."""
-        if event_type != "step_completed":
-            return
+        if event_type == "step_completed":
+            self._log_step_completed(payload)
+        elif event_type == "step_denied":
+            self._log_step_denied(payload)
 
+    def _log_step_denied(self, payload: Mapping[str, Any]) -> None:
+        record = {
+            "event": "step_denied",
+            "schema_version": payload.get("schema_version", 0),
+            "request_id": payload.get("request_id"),
+            "step_id": payload.get("step_id"),
+            "chain_id": payload.get("chain_id"),
+            "kind": payload.get("kind"),
+            "reason": payload.get("reason"),
+            "model": payload.get("model"),
+            "tool_name": payload.get("tool_name"),
+        }
+        self._logger.log(self._level, json.dumps(record, default=str))
+
+    def _log_step_completed(self, payload: Mapping[str, Any]) -> None:
         signals = payload.get("signals", [])
 
         record = {
-            "event": event_type,
+            "event": "step_completed",
             "schema_version": payload.get("schema_version", 0),
             "request_id": payload.get("request_id"),
             "step_id": payload.get("step_id"),

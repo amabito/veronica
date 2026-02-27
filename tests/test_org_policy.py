@@ -224,3 +224,46 @@ class TestOrgPolicyIntegration:
 
         assert handle.decision_meta.org_denial is None
         assert handle.policy.ceiling_usd > 0
+
+
+# ---------------------------------------------------------------------------
+# Task 4: MetricsSubscriber + StructuredLogSubscriber extensions
+# ---------------------------------------------------------------------------
+
+
+class TestOrgPolicyMetrics:
+    def test_denied_total_metric(self) -> None:
+        """MetricsSubscriber increments veronica_denied_total on step_denied."""
+        from prometheus_client import CollectorRegistry
+        from veronica.metrics_subscriber import MetricsSubscriber
+
+        registry = CollectorRegistry()
+        subscriber = MetricsSubscriber(registry=registry)
+
+        subscriber("step_denied", {
+            "kind": "llm",
+            "reason": "model blocked",
+            "model": "gpt-4",
+        })
+
+        value = registry.get_sample_value(
+            "veronica_denied_total",
+            {"kind": "llm"},
+        )
+        assert value == 1.0
+
+    def test_denied_total_unknown_kind(self) -> None:
+        """Missing kind defaults to 'unknown'."""
+        from prometheus_client import CollectorRegistry
+        from veronica.metrics_subscriber import MetricsSubscriber
+
+        registry = CollectorRegistry()
+        subscriber = MetricsSubscriber(registry=registry)
+
+        subscriber("step_denied", {"reason": "blocked"})
+
+        value = registry.get_sample_value(
+            "veronica_denied_total",
+            {"kind": "unknown"},
+        )
+        assert value == 1.0

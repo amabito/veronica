@@ -189,6 +189,53 @@ class TestTotalSpentUsdThreadSafety:
         assert isinstance(vos._lock, (_threading.Lock().__class__, _threading.RLock().__class__))
 
 
+class TestVeronicaOSLifecycle:
+    """Bug 4: VeronicaOS.close() must call store.close() if hasattr."""
+
+    def test_close_calls_store_close(self) -> None:
+        """VeronicaOS.close() must call store.close() when store has it."""
+        from unittest.mock import MagicMock
+        store = MagicMock()
+        store.build_history.return_value = MemoryStore().build_history("c1")
+        vos = VeronicaOS(store=store)
+        vos.close()
+        store.close.assert_called_once()
+
+    def test_close_no_error_when_store_lacks_close(self) -> None:
+        """VeronicaOS.close() must not raise if store has no close()."""
+        store = MemoryStore()  # MemoryStore has no close()
+        vos = VeronicaOS(store=store)
+        assert not hasattr(store, "close"), "MemoryStore should not have close()"
+        vos.close()  # Must not raise
+
+    def test_context_manager_calls_close(self) -> None:
+        """VeronicaOS must support 'with' statement."""
+        from unittest.mock import patch
+        vos = VeronicaOS()
+        with patch.object(vos, "close") as mock_close:
+            with vos:
+                pass
+        mock_close.assert_called_once()
+
+    def test_context_manager_returns_self(self) -> None:
+        """__enter__ must return self."""
+        vos = VeronicaOS()
+        with vos as entered:
+            assert entered is vos
+
+    def test_context_manager_calls_close_on_exception(self) -> None:
+        """__exit__ must call close() even when body raises."""
+        from unittest.mock import patch
+        vos = VeronicaOS()
+        with patch.object(vos, "close") as mock_close:
+            try:
+                with vos:
+                    raise ValueError("test error")
+            except ValueError:
+                pass
+        mock_close.assert_called_once()
+
+
 class TestChainRemainingUsd:
     """Bug 3: BudgetState.chain_remaining_usd must track per-chain spending."""
 

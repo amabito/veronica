@@ -533,6 +533,17 @@ class VeronicaOS:
             logger.debug("[VERONICA_OS] EventEmitter error (swallowed)")
         stage_times["emit"] = (time.monotonic() - t0) * 1000
 
+    def close(self) -> None:
+        """Release resources. Flushes store if store supports close()."""
+        if hasattr(self._store, "close"):
+            self._store.close()
+
+    def __enter__(self) -> "VeronicaOS":
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        self.close()
+
     def _degrade_reason(self, handle: StepHandle) -> str | None:
         """Determine why this step was degraded."""
         if not handle.decision_meta.degraded:

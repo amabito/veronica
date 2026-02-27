@@ -219,3 +219,90 @@ class TestStepContextManager:
         # after_step still committed (via fallback snapshot)
         history = vos._store.build_history("c1")
         assert history.depth == 1
+
+
+import re
+
+
+class TestNormalizeIntent:
+    def test_fills_defaults(self) -> None:
+        """Empty fields get UUID/default/step-N/30000/{}."""
+        vos = VeronicaOS()
+        intent = StepIntent(
+            step_id="", request_id="", chain_id="",
+            kind="llm", model="gpt-4", tool_name=None,
+            timeout_ms=0, metadata={},
+        )
+        result = vos._normalize_intent(intent)
+
+        # request_id: 32-char hex UUID
+        assert len(result.request_id) == 32
+        assert re.match(r"^[0-9a-f]{32}$", result.request_id)
+
+        # chain_id: "default"
+        assert result.chain_id == "default"
+
+        # step_id: "step-N"
+        assert result.step_id.startswith("step-")
+        n = int(result.step_id.split("-")[1])
+        assert n >= 1
+
+        # timeout_ms: 30000
+        assert result.timeout_ms == 30_000
+
+        # metadata: {}
+        assert result.metadata == {}
+
+        # kind and model preserved
+        assert result.kind == "llm"
+        assert result.model == "gpt-4"
+
+    def test_preserves_explicit_values(self) -> None:
+        """Explicit values are not overwritten; returns same instance."""
+        vos = VeronicaOS()
+        intent = StepIntent(
+            step_id="my-step", request_id="my-req", chain_id="my-chain",
+            kind="tool", model=None, tool_name="search",
+            timeout_ms=5000, metadata={"key": "val"},
+        )
+        result = vos._normalize_intent(intent)
+
+        # Same instance (no changes needed)
+        assert result is intent
+
+    def test_partial_fill(self) -> None:
+        """Only empty fields are filled; explicit fields preserved."""
+        vos = VeronicaOS()
+        intent = StepIntent(
+            step_id="custom-step", request_id="", chain_id="my-chain",
+            kind="llm", model="gpt-4", tool_name=None,
+            timeout_ms=5000, metadata={"x": 1},
+        )
+        result = vos._normalize_intent(intent)
+
+        assert result.step_id == "custom-step"  # preserved
+        assert len(result.request_id) == 32  # filled
+        assert result.chain_id == "my-chain"  # preserved
+        assert result.timeout_ms == 5000  # preserved
+        assert result.metadata == {"x": 1}  # preserved
+
+
+class TestRunStep:
+    def test_run_step_sugar(self) -> None:
+        """run_step produces a result and commits to store."""
+        vos = VeronicaOS()
+        intent = StepIntent(
+            step_id="", request_id="", chain_id="",
+            kind="llm", model="gpt-4", tool_name=None,
+            timeout_ms=0, metadata={},
+        )
+
+        result = vos.run_step(intent, lambda: "hello")
+
+        # run_step returns the Decision from wrap_llm_call, not "hello"
+        # (wrap_llm_call wraps the fn and returns Decision.ALLOW on success)
+        assert result is not None
+
+        # after_step committed to store via "default" chain
+        history = vos._store.build_history("default")
+        assert history.depth == 1

@@ -20,16 +20,29 @@ class BufferedEmitter:
 
     Re-entrancy: Subscribers may call emit() from within their callback
     without deadlock. Infinite recursion is the caller's responsibility.
+
+    When the ring buffer is full (len == maxlen), the oldest entry is silently
+    dropped by the deque. Use dropped_total to observe how many events have
+    been dropped due to buffer overflow.
     """
 
     def __init__(self, maxlen: int = 1024) -> None:
         self._buffer: deque[tuple[str, Mapping[str, Any]]] = deque(maxlen=maxlen)
         self._subscribers: dict[str, Callable[[str, Mapping[str, Any]], None]] = {}
         self._fail_counts: dict[str, int] = {}
+        self._dropped: int = 0
         self._lock = threading.Lock()
+
+    @property
+    def dropped_total(self) -> int:
+        """Total events dropped due to ring buffer overflow."""
+        with self._lock:
+            return self._dropped
 
     def emit(self, event_type: str, payload: Mapping[str, Any]) -> None:
         with self._lock:
+            if self._buffer.maxlen is not None and len(self._buffer) == self._buffer.maxlen:
+                self._dropped += 1
             self._buffer.append((event_type, payload))
             targets = list(self._subscribers.items())
 

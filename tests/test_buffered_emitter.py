@@ -81,6 +81,13 @@ class TestBufferedEmitter:
         emitter = BufferedEmitter()
         assert isinstance(emitter, EventEmitterProtocol)
 
+    def test_dropped_total_counts_overflow(self) -> None:
+        """emit 5 events into maxlen=2 buffer -- dropped_total == 3."""
+        emitter = BufferedEmitter(maxlen=2)
+        for i in range(5):
+            emitter.emit("e", {"i": i})
+        assert emitter.dropped_total == 3
+
 
 class TestBufferedEmitterThreadSafety:
     def test_concurrent_emit(self) -> None:

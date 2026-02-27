@@ -24,6 +24,12 @@ class AdaptivePlanner:
     - loosen: +3% (conservative)
     - 3-step cooldown per chain_id after any adjustment.
     - Ceiling >= estimated_cost * 1.5 (prevents starvation).
+
+    Works best with HistoryAnalyzer (emits halt_tighten signals for precise
+    severity detection). When used with RuleAnalyzer or other analyzers that
+    do not emit halt_tighten signals, _tighten_factor falls back to the
+    maximum severity across all signals to select the appropriate factor.
+    If no signals are present, _TIMEOUT_FACTOR (-10%) is used.
     """
 
     def __init__(
@@ -98,9 +104,20 @@ class AdaptivePlanner:
 
     @staticmethod
     def _tighten_factor(analysis: AnalysisResult) -> float:
+        # Prefer halt_tighten signals for precise HistoryAnalyzer-based detection
         for signal in analysis.signals:
             if signal.kind == "halt_tighten":
                 if signal.severity == "critical":
                     return _HALTED_FACTOR
                 return _ERROR_FACTOR
+
+        # Fallback: derive factor from max severity across all signals.
+        # This allows RuleAnalyzer (which emits repeated_failure/depth_anomaly)
+        # to produce the correct tightening factor without halt_tighten signals.
+        if analysis.signals:
+            max_critical = any(s.severity == "critical" for s in analysis.signals)
+            if max_critical:
+                return _HALTED_FACTOR
+            return _ERROR_FACTOR
+
         return _TIMEOUT_FACTOR

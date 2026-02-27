@@ -106,3 +106,43 @@ class TestAdaptivePlanner:
 
         planner = AdaptivePlanner()
         assert isinstance(planner, PlannerProtocol)
+
+    # --- Bug fix: RuleAnalyzer-style signals (no halt_tighten) ---
+
+    def test_tighten_with_rule_analyzer_halt_recommendation(self) -> None:
+        """AdaptivePlanner with RuleAnalyzer signals (no halt_tighten) + recommendation=halt
+        should still tighten by _HALTED_FACTOR (-50%) via recommendation fallback."""
+        planner = AdaptivePlanner(base_ceiling_usd=1.0)
+        # RuleAnalyzer emits repeated_failure (critical) and sets recommendation="tighten"
+        # But for a halted outcome with critical risk, recommendation might be "halt"
+        # Use recommendation="tighten" + critical signal (not halt_tighten kind)
+        critical_signals = (Signal(kind="repeated_failure", severity="critical", detail="5 failures"),)
+        result = planner.plan(
+            _analysis(recommendation="tighten", risk_level="critical", signals=critical_signals),
+            _cost(), _budget(),
+        )
+        # Should use _HALTED_FACTOR (0.50) since signal severity is critical
+        assert result.ceiling_usd == pytest.approx(0.50)
+
+    def test_tighten_with_rule_analyzer_warning_recommendation(self) -> None:
+        """AdaptivePlanner with RuleAnalyzer signals (no halt_tighten) + recommendation=tighten
+        and warning severity should use _ERROR_FACTOR (-15%) via recommendation fallback."""
+        planner = AdaptivePlanner(base_ceiling_usd=1.0)
+        # RuleAnalyzer emits repeated_failure (warning)
+        warning_signals = (Signal(kind="repeated_failure", severity="warning", detail="2 failures"),)
+        result = planner.plan(
+            _analysis(recommendation="tighten", risk_level="elevated", signals=warning_signals),
+            _cost(), _budget(),
+        )
+        # Should use _ERROR_FACTOR (0.85) since max severity is warning
+        assert result.ceiling_usd == pytest.approx(0.85)
+
+    def test_tighten_no_signals_uses_timeout_factor(self) -> None:
+        """When recommendation=tighten but no signals, use _TIMEOUT_FACTOR (-10%)."""
+        planner = AdaptivePlanner(base_ceiling_usd=1.0)
+        result = planner.plan(
+            _analysis(recommendation="tighten", signals=()),
+            _cost(), _budget(),
+        )
+        # No signals: fallback to _TIMEOUT_FACTOR (0.90)
+        assert result.ceiling_usd == pytest.approx(0.90)

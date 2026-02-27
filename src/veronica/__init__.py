@@ -5,7 +5,7 @@ from veronica.adaptive_planner import AdaptivePlanner
 from veronica.buffered_emitter import BufferedEmitter
 from veronica.file_store import FileStore
 from veronica.history_analyzer import HistoryAnalyzer
-from veronica.os import VeronicaOS
+from veronica.os import StepContext, VeronicaOS
 from veronica.proportional_arbiter import ProportionalArbiter
 from veronica.metrics_subscriber import MetricsSubscriber
 from veronica.redis_arbiter import RedisArbiter
@@ -31,6 +31,7 @@ __version__ = "0.5.0"
 __all__ = [
     # Core
     "VeronicaOS",
+    "StepContext",
     # Phase 2 components
     "AdaptivePlanner",
     "BufferedEmitter",

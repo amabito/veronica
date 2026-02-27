@@ -148,3 +148,69 @@ class TestSettle:
         assert arbiter._redis.get("veronica:test:alloc:r1:s1") is not None
         arbiter.settle("r1", "s1", actual_cost_usd=10.0)
         assert arbiter._redis.get("veronica:test:alloc:r1:s1") is None
+
+
+import threading
+
+
+class TestAtomicity:
+    def test_concurrent_reserve(self, arbiter: RedisArbiter) -> None:
+        """10 threads each reserve 10 USD from 100 USD budget.
+
+        All 10 should succeed (total = 100), remaining = 0.
+        """
+        results: list[float] = []
+        errors: list[Exception] = []
+
+        def reserve(i: int) -> None:
+            try:
+                arbiter.set_arbitration_context(f"r{i}", f"s{i}")
+                configs = arbiter.arbitrate(
+                    [_desire(chain_id=f"c{i}", ceiling_usd=10.0)], 100.0,
+                )
+                results.append(configs[f"c{i}"].ceiling_usd)
+            except Exception as e:
+                errors.append(e)
+
+        threads = [threading.Thread(target=reserve, args=(i,)) for i in range(10)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert not errors
+        remaining = int(arbiter._redis.get("veronica:test:budget:remaining"))
+        assert remaining == 0
+
+    def test_concurrent_reserve_and_settle(self, arbiter: RedisArbiter) -> None:
+        """5 reserves followed by 5 settles. Budget is consistent."""
+        # Sequential reserves first (to have alloc keys)
+        for i in range(5):
+            arbiter.set_arbitration_context(f"r{i}", f"s{i}")
+            arbiter.arbitrate(
+                [_desire(chain_id=f"c{i}", ceiling_usd=10.0)], 100.0,
+            )
+
+        # remaining = 50 after 5 reserves of 10 each
+        remaining_before = int(arbiter._redis.get("veronica:test:budget:remaining"))
+        assert remaining_before == _to_micro(50.0)
+
+        # Concurrent settles: each actual = 8 (refund 2 each)
+        errors: list[Exception] = []
+
+        def settle(i: int) -> None:
+            try:
+                arbiter.settle(f"r{i}", f"s{i}", actual_cost_usd=8.0)
+            except Exception as e:
+                errors.append(e)
+
+        threads = [threading.Thread(target=settle, args=(i,)) for i in range(5)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert not errors
+        # 50 + 5*(10-8) = 50 + 10 = 60
+        remaining = int(arbiter._redis.get("veronica:test:budget:remaining"))
+        assert remaining == _to_micro(60.0)

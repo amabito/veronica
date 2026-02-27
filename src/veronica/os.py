@@ -155,6 +155,13 @@ class VeronicaOS:
                 priority=desired.priority,
             )
 
+        # 4b. Inject arbitration context for RedisArbiter idempotency
+        if hasattr(self._arbiter, "set_arbitration_context"):
+            self._arbiter.set_arbitration_context(
+                request_id=intent.request_id,
+                step_id=intent.step_id,
+            )
+
         # 5. Arbiter
         try:
             configs, elapsed = run_with_budget(
@@ -252,6 +259,14 @@ class VeronicaOS:
             outcome, analysis, handle.cost,
             handle.desired, handle.policy, handle.decision_meta,
         )
+
+        # 5b. Settle reservation with actual cost
+        if hasattr(self._arbiter, "settle"):
+            self._arbiter.settle(
+                request_id=handle.intent.request_id,
+                step_id=handle.intent.step_id,
+                actual_cost_usd=outcome.cost_usd,
+            )
 
         # 6. EventEmitter (fire-and-forget)
         try:

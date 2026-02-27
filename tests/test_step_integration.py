@@ -175,3 +175,47 @@ class TestStepContext:
 
         assert step_ctx.policy is handle.policy
         assert step_ctx.policy.ceiling_usd == 1.0
+
+
+from veronica.os import VeronicaOS
+
+
+class TestStepContextManager:
+    def test_step_calls_after_step(self) -> None:
+        """after_step runs after normal execution inside step()."""
+        vos = VeronicaOS()
+        intent = _empty_intent()
+
+        with vos.step(intent) as ctx:
+            assert isinstance(ctx, StepContext)
+            assert ctx.policy.ceiling_usd > 0
+
+        # after_step committed to store -- verify via store history
+        history = vos._store.build_history("c1")
+        assert history.depth == 1
+
+    def test_step_calls_after_step_on_exception(self) -> None:
+        """after_step runs even when the body raises an exception."""
+        vos = VeronicaOS()
+        intent = _empty_intent()
+
+        with pytest.raises(ValueError, match="boom"):
+            with vos.step(intent) as ctx:
+                raise ValueError("boom")
+
+        # after_step still committed
+        history = vos._store.build_history("c1")
+        assert history.depth == 1
+
+    def test_step_uses_fallback_on_snapshot_failure(self) -> None:
+        """When get_snapshot() fails, fallback snapshot is used and after_step still runs."""
+        vos = VeronicaOS()
+        intent = _empty_intent()
+
+        with vos.step(intent) as ctx:
+            # Force get_snapshot to fail
+            ctx.exec_ctx.get_snapshot = MagicMock(side_effect=RuntimeError("boom"))
+
+        # after_step still committed (via fallback snapshot)
+        history = vos._store.build_history("c1")
+        assert history.depth == 1

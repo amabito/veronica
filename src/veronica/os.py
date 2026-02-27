@@ -10,6 +10,7 @@ from itertools import count
 from typing import Any, Callable, Iterator, Mapping, TypeVar
 
 from veronica_core.containment.execution_context import (
+    ChainMetadata,
     ContextSnapshot,
     ExecutionContext,
 )
@@ -170,7 +171,11 @@ class VeronicaOS:
         On get_snapshot() failure, a fallback ContextSnapshot is used.
         """
         handle = self.before_step(intent)
-        ctx = ExecutionContext(config=handle.policy.to_exec_config())
+        metadata = ChainMetadata(
+            request_id=intent.request_id,
+            chain_id=intent.chain_id,
+        )
+        ctx = ExecutionContext(config=handle.policy.to_exec_config(), metadata=metadata)
         step_ctx = StepContext(handle=handle, exec_ctx=ctx)
         try:
             yield step_ctx

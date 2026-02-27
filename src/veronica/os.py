@@ -4,9 +4,15 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Mapping
+import uuid
+from contextlib import contextmanager
+from itertools import count
+from typing import Any, Callable, Iterator, Mapping, TypeVar
 
-from veronica_core.containment.execution_context import ContextSnapshot
+from veronica_core.containment.execution_context import (
+    ContextSnapshot,
+    ExecutionContext,
+)
 
 from veronica._timeguard import TimeBudgetExceeded, run_with_budget
 from veronica.analyzer import RuleAnalyzer
@@ -53,6 +59,77 @@ _KNOWN_STAGES = frozenset({
     "store", "emit",
 })
 
+_step_counter = count(1)
+_DEFAULT_TIMEOUT_MS = 30_000
+
+T = TypeVar("T")
+
+
+def _make_fallback_snapshot(intent: StepIntent, reason: str) -> ContextSnapshot:
+    """Build a minimal ContextSnapshot when get_snapshot() fails.
+
+    Defensive: even if SafetyEvent creation fails, the snapshot
+    is still returned (with empty events). The snapshot itself
+    must never raise.
+    """
+    events: list[Any] = []
+    try:
+        from veronica_core.shield.event import SafetyEvent
+        from veronica_core.shield.hooks import Decision
+        from datetime import datetime, timezone
+
+        events = [SafetyEvent(
+            event_type="snapshot_failed",
+            decision=Decision.HALT,
+            reason=reason,
+            hook="veronica_os",
+            ts=datetime.now(timezone.utc),
+            metadata={"step_id": intent.step_id},
+        )]
+    except Exception:
+        pass  # events stays empty; snapshot still valid
+
+    return ContextSnapshot(
+        chain_id=intent.chain_id,
+        request_id=intent.request_id,
+        step_count=0,
+        cost_usd_accumulated=0.0,
+        retries_used=0,
+        aborted=True,
+        abort_reason=reason,
+        elapsed_ms=0.0,
+        nodes=[],
+        events=events,
+    )
+
+
+class StepContext:
+    """Yielded by vos.step(). Wraps ExecutionContext."""
+
+    def __init__(self, handle: StepHandle, exec_ctx: ExecutionContext) -> None:
+        self.handle = handle
+        self.exec_ctx = exec_ctx
+
+    def run(self, fn: Callable[[], T]) -> T:
+        """Execute fn, dispatching by intent.kind.
+
+        kind="tool" -> wrap_tool_call, otherwise -> wrap_llm_call.
+        kind="system" is treated as llm (no wrap_system_call in veronica-core).
+        """
+        if self.handle.intent.kind == "tool":
+            return self.exec_ctx.wrap_tool_call(fn)
+        return self.exec_ctx.wrap_llm_call(fn)
+
+    def run_llm(self, fn: Callable[[], T]) -> T:
+        return self.exec_ctx.wrap_llm_call(fn)
+
+    def run_tool(self, fn: Callable[[], T]) -> T:
+        return self.exec_ctx.wrap_tool_call(fn)
+
+    @property
+    def policy(self) -> PolicyConfig:
+        return self.handle.policy
+
 
 class VeronicaOS:
     """VERONICA Execution OS.
@@ -84,6 +161,70 @@ class VeronicaOS:
         self._request_budget_usd = request_budget_usd
         self._last_analysis: AnalysisResult | None = None
         self._total_spent_usd: float = 0.0
+
+    @contextmanager
+    def step(self, intent: StepIntent) -> Iterator[StepContext]:
+        """Context manager for one execution step.
+
+        Guarantees after_step always runs, even on exception.
+        On get_snapshot() failure, a fallback ContextSnapshot is used.
+        """
+        handle = self.before_step(intent)
+        ctx = ExecutionContext(config=handle.policy.to_exec_config())
+        step_ctx = StepContext(handle=handle, exec_ctx=ctx)
+        try:
+            yield step_ctx
+        finally:
+            try:
+                snapshot = ctx.get_snapshot()
+            except Exception:
+                logger.exception(
+                    "[VERONICA_OS] snapshot retrieval failed; using fallback"
+                )
+                snapshot = _make_fallback_snapshot(
+                    intent, "snapshot_retrieval_failed"
+                )
+            self.after_step(handle, snapshot)
+
+    def _normalize_intent(self, intent: StepIntent) -> StepIntent:
+        """Fill missing StepIntent fields with safe defaults.
+
+        Does not mutate the original (frozen dataclass). Returns a new
+        instance only if any field was empty.
+        """
+        changes: dict[str, Any] = {}
+        if not intent.request_id:
+            changes["request_id"] = uuid.uuid4().hex
+        if not intent.chain_id:
+            changes["chain_id"] = "default"
+        if not intent.step_id:
+            changes["step_id"] = f"step-{next(_step_counter)}"
+        if not intent.timeout_ms:
+            changes["timeout_ms"] = _DEFAULT_TIMEOUT_MS
+        if not intent.metadata:
+            changes["metadata"] = {}
+
+        if not changes:
+            return intent
+
+        from dataclasses import asdict
+
+        fields = asdict(intent)
+        fields.update(changes)
+        return StepIntent(**fields)
+
+    def run_step(self, intent: StepIntent, fn: Callable[[], T]) -> T:
+        """Execute one step with full OS pipeline. Convenience wrapper.
+
+        Equivalent to::
+
+            with vos.step(intent) as s:
+                return s.run(fn)
+
+        Empty intent fields are auto-filled (see _normalize_intent).
+        """
+        with self.step(self._normalize_intent(intent)) as s:
+            return s.run(fn)
 
     def before_step(self, intent: StepIntent) -> StepHandle:
         """Pre-execution pipeline. Returns a StepHandle carrying the policy."""

@@ -155,3 +155,118 @@ class TestPayload:
         _, payload = emitter.snapshot()[0]
         assert payload["request_id"] == "r99"
         assert payload["chain_id"] == "c7"
+
+
+from prometheus_client import CollectorRegistry
+from veronica.metrics_subscriber import MetricsSubscriber
+
+
+def _metrics(prefix="test") -> tuple[MetricsSubscriber, CollectorRegistry]:
+    """MetricsSubscriber with isolated registry."""
+    registry = CollectorRegistry()
+    ms = MetricsSubscriber.__new__(MetricsSubscriber)
+    from prometheus_client import Counter, Histogram
+
+    ms.steps_total = Counter(
+        f"{prefix}_steps_total", "test",
+        ["status", "kind", "recommendation", "risk_level"],
+        registry=registry,
+    )
+    ms.step_elapsed = Histogram(
+        f"{prefix}_step_elapsed_ms", "test", ["kind"],
+        buckets=[10, 50, 100, 500, 1000, 5000, 10000],
+        registry=registry,
+    )
+    ms.stage_elapsed = Histogram(
+        f"{prefix}_stage_elapsed_ms", "test", ["stage"],
+        buckets=[1, 5, 10, 20, 50, 100, 250, 500, 1000, 5000],
+        registry=registry,
+    )
+    ms.cost_total = Counter(
+        f"{prefix}_cost_microusd_total", "test",
+        registry=registry,
+    )
+    ms.degrade_total = Counter(
+        f"{prefix}_degrade_total", "test",
+        ["degrade_reason"],
+        registry=registry,
+    )
+    return ms, registry
+
+
+def _sample_payload(**overrides) -> dict:
+    base = {
+        "schema_version": 1,
+        "request_id": "r1", "step_id": "s1", "chain_id": "c1",
+        "kind": "llm", "status": "ok",
+        "cost_usd": 0.01, "tokens_in": 100, "tokens_out": 50,
+        "elapsed_ms": 150.0,
+        "risk_level": "nominal", "recommendation": "continue",
+        "degraded": False, "degrade_reason": None,
+        "signals": [], "stage_time_ms": {"analyzer": 5.0, "planner": 10.0},
+    }
+    base.update(overrides)
+    return base
+
+
+class TestMetricsSubscriber:
+    def test_steps_total_increments(self) -> None:
+        """step_completed increments steps_total."""
+        ms, reg = _metrics("t1")
+        ms("step_completed", _sample_payload())
+
+        val = reg.get_sample_value(
+            "t1_steps_total",
+            {"status": "ok", "kind": "llm",
+             "recommendation": "continue", "risk_level": "nominal"},
+        )
+        assert val == 1.0
+
+    def test_cost_microusd_accumulates(self) -> None:
+        """cost_usd=0.01 -> inc(10_000)."""
+        ms, reg = _metrics("t2")
+        ms("step_completed", _sample_payload(cost_usd=0.01))
+
+        val = reg.get_sample_value("t2_cost_microusd_total")
+        assert val == 10_000.0
+
+    def test_stage_elapsed_observes_known(self) -> None:
+        """Known stages are observed in histogram."""
+        ms, reg = _metrics("t3")
+        ms("step_completed", _sample_payload(
+            stage_time_ms={"analyzer": 5.0, "planner": 10.0},
+        ))
+
+        count = reg.get_sample_value(
+            "t3_stage_elapsed_ms_count", {"stage": "analyzer"},
+        )
+        assert count == 1.0
+
+    def test_unknown_stage_dropped(self) -> None:
+        """Unknown stage names are not added as labels."""
+        ms, reg = _metrics("t4")
+        ms("step_completed", _sample_payload(
+            stage_time_ms={"bogus_stage": 99.0},
+        ))
+
+        count = reg.get_sample_value(
+            "t4_stage_elapsed_ms_count", {"stage": "bogus_stage"},
+        )
+        assert count is None  # not created
+
+    def test_missing_field_no_crash(self) -> None:
+        """Payload with missing elapsed_ms does not raise."""
+        ms, _ = _metrics("t5")
+        payload = _sample_payload()
+        del payload["elapsed_ms"]
+        ms("step_completed", payload)  # should not raise
+
+    def test_degrade_only_on_degraded(self) -> None:
+        """degrade_total only increments when degraded=True."""
+        ms, reg = _metrics("t6")
+        ms("step_completed", _sample_payload(degraded=False, degrade_reason=None))
+
+        val = reg.get_sample_value(
+            "t6_degrade_total", {"degrade_reason": "other"},
+        )
+        assert val is None  # not incremented

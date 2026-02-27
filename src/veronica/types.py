@@ -151,6 +151,8 @@ class PolicyConfig:
 
     # Time
     timeout_ms: int | None = None
+    # Reserved for future use: rate limiting is not enforced by the current
+    # executor. Setting these fields has no effect on policy enforcement.
     rate_window_seconds: float | None = None
     rate_ceiling_calls: int | None = None
 

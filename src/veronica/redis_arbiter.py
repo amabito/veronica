@@ -126,6 +126,12 @@ class RedisArbiter:
         request_id: str,
         step_id: str,
     ) -> Mapping[str, PolicyConfig]:
+        """Perform atomic budget reservation via Redis Lua script.
+
+        Note: only desires[0] is processed. Multi-chain arbitration (len(desires) > 1)
+        is not supported in the Redis path; callers must issue one desire at a time.
+        Additional desires beyond the first are silently ignored.
+        """
         if not desires:
             return {}
 

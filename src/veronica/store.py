@@ -34,6 +34,12 @@ class MemoryStore:
         policy: PolicyConfig,
         meta: DecisionMeta,
     ) -> None:
+        """Persist a completed step.
+
+        Only StepOutcome is stored; analysis, cost, desired, policy, and meta
+        are accepted to satisfy StoreProtocol but intentionally dropped.
+        This is by design for the in-memory/testing implementation.
+        """
         self._chains[outcome.chain_id].append(outcome)
 
     def build_history(self, chain_id: str, limit: int = 50) -> HistoryView:

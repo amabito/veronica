@@ -99,8 +99,9 @@ veronica-core is [v1.0](https://github.com/amabito/veronica-core/releases/tag/v1
 
 | v0.5.0 | Phase 5 | Grafana Dashboard: metrics exporter, docker-compose provisioning, 5-panel dashboard |
 | v0.6.0 | Phase 6b | LLM integration adapter: `step()` context manager, `run_step()` sugar |
+| v0.7.0 | Phase 7 | Org policy engine: validate/clamp, `step_denied` metric |
 
-**Current:** v0.6.0 -- 216 tests, 93% coverage. Protocol interfaces stable since v0.1.0.
+**Current:** v0.7.0 -- 232 tests, 94% coverage. Protocol interfaces stable since v0.1.0.
 
 ---
 

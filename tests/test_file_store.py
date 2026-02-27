@@ -195,3 +195,47 @@ class TestFileStore:
         assert hv.success_streak == 0
         assert hv.cost_per_step_ema == 0.0
         assert hv.budget_headroom_ratio == 1.0
+
+    def test_headroom_basic_injection(self, tmp_path) -> None:
+        """set_budget_context -> commit -> build_history returns correct headroom."""
+        store = FileStore(data_dir=str(tmp_path))
+        store.set_budget_context(10.0, 7.0)
+        store.commit(_outcome(), _analysis(), _cost_est(), _desired(), _policy(), _meta())
+        hv = store.build_history("c1")
+        assert hv.budget_headroom_ratio == pytest.approx(0.7)
+
+    def test_headroom_zero_ceiling(self, tmp_path) -> None:
+        """Zero ceiling does not cause division by zero."""
+        store = FileStore(data_dir=str(tmp_path))
+        store.set_budget_context(0.0, 0.0)
+        store.commit(_outcome(), _analysis(), _cost_est(), _desired(), _policy(), _meta())
+        hv = store.build_history("c1")
+        assert hv.budget_headroom_ratio == 1.0  # default preserved
+
+    def test_headroom_no_context_set(self, tmp_path) -> None:
+        """Without set_budget_context, headroom stays at default 1.0."""
+        store = FileStore(data_dir=str(tmp_path))
+        store.commit(_outcome(), _analysis(), _cost_est(), _desired(), _policy(), _meta())
+        hv = store.build_history("c1")
+        assert hv.budget_headroom_ratio == 1.0
+
+    def test_headroom_cleared_after_commit(self, tmp_path) -> None:
+        """Budget context is consumed by commit -- not reused on next commit."""
+        store = FileStore(data_dir=str(tmp_path))
+        store.set_budget_context(10.0, 7.0)
+        store.commit(_outcome(step_id="s1"), _analysis(), _cost_est(), _desired(), _policy(), _meta())
+        # Second commit without set_budget_context
+        store.commit(_outcome(step_id="s2"), _analysis(), _cost_est(), _desired(), _policy(), _meta())
+        hv = store.build_history("c1")
+        # headroom should still be 0.7 (last successful update), not re-updated
+        assert hv.budget_headroom_ratio == pytest.approx(0.7)
+
+    def test_headroom_persists_across_reload(self, tmp_path) -> None:
+        """Headroom survives stats flush + reload."""
+        store = FileStore(data_dir=str(tmp_path))
+        store.set_budget_context(10.0, 5.0)
+        store.commit(_outcome(), _analysis(), _cost_est(), _desired(), _policy(), _meta())
+        store.close()
+        store2 = FileStore(data_dir=str(tmp_path))
+        hv = store2.build_history("c1")
+        assert hv.budget_headroom_ratio == pytest.approx(0.5)

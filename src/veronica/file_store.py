@@ -38,6 +38,7 @@ class _ChainStats:
         "success_streak",
         "failure_streak",
         "total_commits",
+        "budget_headroom_ratio",
     )
 
     def __init__(self) -> None:
@@ -47,6 +48,7 @@ class _ChainStats:
         self.success_streak: int = 0
         self.failure_streak: int = 0
         self.total_commits: int = 0
+        self.budget_headroom_ratio: float = 1.0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -56,6 +58,7 @@ class _ChainStats:
             "success_streak": self.success_streak,
             "failure_streak": self.failure_streak,
             "total_commits": self.total_commits,
+            "budget_headroom_ratio": self.budget_headroom_ratio,
         }
 
     @classmethod
@@ -67,6 +70,7 @@ class _ChainStats:
         s.success_streak = data.get("success_streak", 0)
         s.failure_streak = data.get("failure_streak", 0)
         s.total_commits = data.get("total_commits", 0)
+        s.budget_headroom_ratio = data.get("budget_headroom_ratio", 1.0)
         return s
 
 
@@ -86,7 +90,14 @@ class FileStore:
         self._data_dir.mkdir(parents=True, exist_ok=True)
         self._flush_interval = flush_interval
         self._chain_stats: dict[str, _ChainStats] = {}
+        self._budget_ceiling: float | None = None
+        self._budget_remaining: float | None = None
         self._load_existing_stats()
+
+    def set_budget_context(self, ceiling_usd: float, remaining_usd: float) -> None:
+        """Inject budget context for the next commit. Consumed on commit."""
+        self._budget_ceiling = ceiling_usd
+        self._budget_remaining = remaining_usd
 
     def _load_existing_stats(self) -> None:
         for stats_path in self._data_dir.glob("*_stats.json"):
@@ -153,6 +164,14 @@ class FileStore:
 
         stats.total_commits += 1
 
+        # Consume budget context
+        ceiling = self._budget_ceiling
+        remaining = self._budget_remaining
+        self._budget_ceiling = None
+        self._budget_remaining = None
+        if ceiling is not None and remaining is not None and ceiling > _EPS:
+            stats.budget_headroom_ratio = remaining / ceiling
+
         # 4. Periodic flush
         if stats.total_commits % self._flush_interval == 0:
             self._flush_stats(chain_id)
@@ -176,7 +195,7 @@ class FileStore:
             cost_per_step_ema=stats.cost_ema,
             cost_per_step_ema_by_model=dict(stats.cost_ema_by_model),
             latency_ema_ms=dict(stats.latency_ema_by_model),
-            budget_headroom_ratio=1.0,  # Requires ceiling context; default for now
+            budget_headroom_ratio=stats.budget_headroom_ratio,
         )
 
     def close(self) -> None:

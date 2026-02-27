@@ -5,7 +5,7 @@ from veronica.adaptive_planner import AdaptivePlanner
 from veronica.buffered_emitter import BufferedEmitter
 from veronica.file_store import FileStore
 from veronica.history_analyzer import HistoryAnalyzer
-from veronica.os import StepContext, VeronicaOS
+from veronica.os import OrgPolicyDenied, StepContext, VeronicaOS
 from veronica.proportional_arbiter import ProportionalArbiter
 from veronica.metrics_subscriber import MetricsSubscriber
 from veronica.redis_arbiter import RedisArbiter
@@ -19,6 +19,7 @@ from veronica.types import (
     DecisionMeta,
     DesiredPolicy,
     HistoryView,
+    OrgPolicy,
     PolicyConfig,
     Signal,
     StepHandle,
@@ -32,6 +33,8 @@ __all__ = [
     # Core
     "VeronicaOS",
     "StepContext",
+    "OrgPolicy",
+    "OrgPolicyDenied",
     # Phase 2 components
     "AdaptivePlanner",
     "BufferedEmitter",

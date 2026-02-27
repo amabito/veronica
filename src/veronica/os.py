@@ -38,6 +38,7 @@ from veronica.types import (
     CostEstimate,
     DecisionMeta,
     DesiredPolicy,
+    OrgPolicy,
     PolicyConfig,
     StepHandle,
     StepIntent,
@@ -104,6 +105,10 @@ def _make_fallback_snapshot(intent: StepIntent, reason: str) -> ContextSnapshot:
     )
 
 
+class OrgPolicyDenied(Exception):
+    """Raised when org policy denies the step."""
+
+
 class StepContext:
     """Yielded by vos.step(). Wraps ExecutionContext."""
 
@@ -111,20 +116,27 @@ class StepContext:
         self.handle = handle
         self.exec_ctx = exec_ctx
 
+    def _check_denial(self) -> None:
+        if self.handle.decision_meta.org_denial is not None:
+            raise OrgPolicyDenied(self.handle.decision_meta.org_denial)
+
     def run(self, fn: Callable[[], T]) -> T:
         """Execute fn, dispatching by intent.kind.
 
         kind="tool" -> wrap_tool_call, otherwise -> wrap_llm_call.
         kind="system" is treated as llm (no wrap_system_call in veronica-core).
         """
+        self._check_denial()
         if self.handle.intent.kind == "tool":
             return self.exec_ctx.wrap_tool_call(fn)
         return self.exec_ctx.wrap_llm_call(fn)
 
     def run_llm(self, fn: Callable[[], T]) -> T:
+        self._check_denial()
         return self.exec_ctx.wrap_llm_call(fn)
 
     def run_tool(self, fn: Callable[[], T]) -> T:
+        self._check_denial()
         return self.exec_ctx.wrap_tool_call(fn)
 
     @property
@@ -150,6 +162,7 @@ class VeronicaOS:
         emitter: EventEmitterProtocol | None = None,
         stage_budgets_ms: Mapping[str, float] | None = None,
         request_budget_usd: float = _DEFAULT_REQUEST_BUDGET_USD,
+        org_policy: OrgPolicy | None = None,
     ) -> None:
         self._collector = collector or SimpleCollector()
         self._analyzer = analyzer or RuleAnalyzer()
@@ -160,6 +173,7 @@ class VeronicaOS:
         self._emitter = emitter or NullEmitter()
         self._budgets = dict(stage_budgets_ms or _DEFAULT_STAGE_BUDGETS)
         self._request_budget_usd = request_budget_usd
+        self._org_policy = org_policy
         self._last_analysis: AnalysisResult | None = None
         self._total_spent_usd: float = 0.0
 
@@ -236,6 +250,54 @@ class VeronicaOS:
         stage_times: dict[str, float] = {}
         degraded = False
 
+        # 0. Org policy validation (hard block, pre-Planner)
+        if self._org_policy is not None:
+            denial = self._org_policy.validate(intent)
+            if denial is not None:
+                logger.warning("[VERONICA_OS] org policy denied: %s", denial)
+                try:
+                    self._emitter.emit("step_denied", {
+                        "schema_version": 1,
+                        "request_id": intent.request_id,
+                        "step_id": intent.step_id,
+                        "chain_id": intent.chain_id,
+                        "kind": intent.kind,
+                        "reason": denial,
+                        "model": intent.model,
+                        "tool_name": intent.tool_name,
+                    })
+                except Exception:
+                    pass  # fire-and-forget
+                policy = PolicyConfig(
+                    chain_id=intent.chain_id,
+                    ceiling_usd=0.0,
+                    on_exceed="halt",
+                    issued_at=time.time(),
+                )
+                return StepHandle(
+                    intent=intent,
+                    policy=policy,
+                    desired=DesiredPolicy(
+                        chain_id=intent.chain_id,
+                        ceiling_usd=0.0, ceiling_steps=0,
+                        ceiling_tokens_out=0, on_exceed="halt",
+                        fallback_model=None,
+                        timeout_ms=intent.timeout_ms, priority=0,
+                    ),
+                    cost=CostEstimate(
+                        estimated_usd=0.0, confidence=1.0,
+                        model_used=intent.model or "unknown",
+                        basis="fallback",
+                    ),
+                    decision_meta=DecisionMeta(
+                        risk_level="critical",
+                        recommendation="halt",
+                        degraded=True,
+                        stage_time_ms={"org_policy": 0.0},
+                        org_denial=denial,
+                    ),
+                )
+
         # 1. Build history
         history = self._store.build_history(intent.chain_id)
 
@@ -292,6 +354,10 @@ class VeronicaOS:
                 timeout_ms=intent.timeout_ms,
                 priority=50,
             )
+
+        # 4.5 Org policy clamp (post-Planner numerical cap)
+        if self._org_policy is not None:
+            desired = self._org_policy.clamp(desired, intent)
 
         # Fill chain_id from intent if planner left it empty
         if not desired.chain_id:

@@ -100,3 +100,48 @@ class TestOrgPolicyClamp:
         desired = _desired(ceiling_usd=10.0, timeout_ms=30_000)
         result = policy.clamp(desired, _intent())
         assert result is desired
+
+
+# ---------------------------------------------------------------------------
+# Task 2: OrgPolicyDenied + StepContext._check_denial
+# ---------------------------------------------------------------------------
+from unittest.mock import MagicMock
+
+from veronica.os import OrgPolicyDenied, StepContext, VeronicaOS
+from veronica.types import (
+    CostEstimate,
+    DecisionMeta,
+    PolicyConfig,
+    StepHandle,
+)
+
+
+class TestOrgPolicyDenied:
+    def test_deny_fn_not_called(self) -> None:
+        """Denied step raises OrgPolicyDenied, fn is never called."""
+        vos = VeronicaOS(
+            org_policy=OrgPolicy(blocked_models=frozenset({"gpt-4"})),
+        )
+        intent = _intent(model="gpt-4")
+        fn = MagicMock(return_value="should_not_run")
+
+        with pytest.raises(OrgPolicyDenied, match="blocked"):
+            with vos.step(intent) as ctx:
+                ctx.run(fn)
+
+        fn.assert_not_called()
+
+    def test_deny_after_step_still_runs(self) -> None:
+        """Denied step still commits to Store via after_step (step() finally block)."""
+        vos = VeronicaOS(
+            org_policy=OrgPolicy(blocked_models=frozenset({"gpt-4"})),
+        )
+        intent = _intent(model="gpt-4")
+
+        with pytest.raises(OrgPolicyDenied):
+            with vos.step(intent) as ctx:
+                ctx.run(lambda: None)
+
+        # after_step committed to store
+        history = vos._store.build_history("c1")
+        assert history.depth == 1

@@ -413,6 +413,13 @@ class VeronicaOS:
             issued_at=time.time(),
         ))
 
+        if policy.expires_at is not None and policy.expires_at < time.time():
+            logger.warning(
+                "[VERONICA_OS] policy expires_at=%s is in the past for chain_id=%s "
+                "(step_id=%s); policy may be stale",
+                policy.expires_at, intent.chain_id, intent.step_id,
+            )
+
         meta = DecisionMeta(
             risk_level=self._last_analysis.risk_level if self._last_analysis else "nominal",
             recommendation=self._last_analysis.recommendation if self._last_analysis else "continue",

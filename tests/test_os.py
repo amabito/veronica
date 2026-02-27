@@ -189,6 +189,76 @@ class TestTotalSpentUsdThreadSafety:
         assert isinstance(vos._lock, (_threading.Lock().__class__, _threading.RLock().__class__))
 
 
+class TestExpiresAtWarning:
+    """Bug 8: PolicyConfig.expires_at should log a warning when expired."""
+
+    def test_expired_policy_logs_warning(self, caplog) -> None:
+        """before_step must log a warning when policy.expires_at is in the past."""
+        import logging
+        from unittest.mock import MagicMock
+        from veronica.types import PolicyConfig, DesiredPolicy
+
+        # Build an arbiter that returns an already-expired policy
+        expired_policy = PolicyConfig(
+            chain_id="c1",
+            ceiling_usd=1.0,
+            on_exceed="halt",
+            issued_at=time.time() - 100.0,
+            expires_at=time.time() - 1.0,  # expired 1 second ago
+        )
+
+        mock_arbiter = MagicMock()
+        mock_arbiter.arbitrate.return_value = {"c1": expired_policy}
+
+        vos = VeronicaOS(arbiter=mock_arbiter)
+        with caplog.at_level(logging.WARNING, logger="veronica.os"):
+            vos.before_step(_intent())
+
+        assert any("expires_at" in msg or "expired" in msg.lower() for msg in caplog.messages), (
+            f"Expected warning about expires_at, got: {caplog.messages}"
+        )
+
+    def test_non_expired_policy_no_warning(self, caplog) -> None:
+        """before_step must not warn when policy.expires_at is in the future."""
+        import logging
+        from unittest.mock import MagicMock
+        from veronica.types import PolicyConfig
+
+        future_policy = PolicyConfig(
+            chain_id="c1",
+            ceiling_usd=1.0,
+            on_exceed="halt",
+            issued_at=time.time(),
+            expires_at=time.time() + 3600.0,  # expires in 1 hour
+        )
+
+        mock_arbiter = MagicMock()
+        mock_arbiter.arbitrate.return_value = {"c1": future_policy}
+
+        vos = VeronicaOS(arbiter=mock_arbiter)
+        with caplog.at_level(logging.WARNING, logger="veronica.os"):
+            vos.before_step(_intent())
+
+        expires_warnings = [
+            msg for msg in caplog.messages
+            if "expires_at" in msg or ("expired" in msg.lower() and "policy" in msg.lower())
+        ]
+        assert not expires_warnings, f"Unexpected expires_at warning: {expires_warnings}"
+
+    def test_no_expires_at_no_warning(self, caplog) -> None:
+        """before_step must not warn when policy.expires_at is None."""
+        import logging
+        vos = VeronicaOS()
+        with caplog.at_level(logging.WARNING, logger="veronica.os"):
+            vos.before_step(_intent())
+
+        expires_warnings = [
+            msg for msg in caplog.messages
+            if "expires_at" in msg
+        ]
+        assert not expires_warnings
+
+
 class TestVeronicaOSLifecycle:
     """Bug 4: VeronicaOS.close() must call store.close() if hasattr."""
 

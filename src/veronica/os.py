@@ -48,6 +48,11 @@ _DEFAULT_STAGE_BUDGETS: dict[str, float] = {
 
 _DEFAULT_REQUEST_BUDGET_USD = 100.0
 
+_KNOWN_STAGES = frozenset({
+    "collector", "analyzer", "cost_model", "planner", "arbiter",
+    "store", "emit",
+})
+
 
 class VeronicaOS:
     """VERONICA Execution OS.
@@ -247,18 +252,19 @@ class VeronicaOS:
         self._last_analysis = analysis
         self._total_spent_usd += outcome.cost_usd
 
-        # 5. Store commit (atomic)
-        # Inject budget context for headroom computation
+        # 5. Store commit (atomic, timed)
         if hasattr(self._store, "set_budget_context"):
             remaining = self._request_budget_usd - self._total_spent_usd
             self._store.set_budget_context(
                 ceiling_usd=self._request_budget_usd,
                 remaining_usd=remaining,
             )
+        t0 = time.monotonic()
         self._store.commit(
             outcome, analysis, handle.cost,
             handle.desired, handle.policy, handle.decision_meta,
         )
+        stage_times["store"] = (time.monotonic() - t0) * 1000
 
         # 5b. Settle reservation with actual cost
         if hasattr(self._arbiter, "settle"):
@@ -268,14 +274,50 @@ class VeronicaOS:
                 actual_cost_usd=outcome.cost_usd,
             )
 
-        # 6. EventEmitter (fire-and-forget)
+        # 6. Merge before_step + after_step stage times
+        all_stage_times = dict(handle.decision_meta.stage_time_ms)
+        all_stage_times.update(stage_times)
+
+        # 7. EventEmitter (fire-and-forget, timed)
+        payload: dict[str, Any] = {
+            "schema_version": 1,
+            "request_id": outcome.request_id,
+            "step_id": outcome.step_id,
+            "chain_id": outcome.chain_id,
+            "kind": outcome.kind,
+            "status": outcome.status,
+            "cost_usd": outcome.cost_usd,
+            "tokens_in": outcome.tokens_in,
+            "tokens_out": outcome.tokens_out,
+            "elapsed_ms": outcome.elapsed_ms,
+            "risk_level": analysis.risk_level,
+            "recommendation": analysis.recommendation,
+            "degraded": handle.decision_meta.degraded,
+            "degrade_reason": self._degrade_reason(handle),
+            "signals": [
+                {"kind": s.kind, "severity": s.severity}
+                for s in analysis.signals
+            ],
+            "stage_time_ms": {
+                k: v for k, v in all_stage_times.items()
+                if k in _KNOWN_STAGES
+            },
+        }
+        t0 = time.monotonic()
         try:
-            self._emitter.emit("step_completed", {
-                "step_id": outcome.step_id,
-                "chain_id": outcome.chain_id,
-                "status": outcome.status,
-                "cost_usd": outcome.cost_usd,
-                "risk_level": analysis.risk_level,
-            })
+            self._emitter.emit("step_completed", payload)
         except Exception:
             logger.debug("[VERONICA_OS] EventEmitter error (swallowed)")
+        stage_times["emit"] = (time.monotonic() - t0) * 1000
+
+    def _degrade_reason(self, handle: StepHandle) -> str | None:
+        """Determine why this step was degraded."""
+        if not handle.decision_meta.degraded:
+            return None
+        if handle.policy.fallback_model is not None:
+            return "fallback_model"
+        for stage, elapsed in handle.decision_meta.stage_time_ms.items():
+            budget = self._budgets.get(stage, 0.0)
+            if budget > 0 and elapsed > budget:
+                return "time_budget"
+        return "other"

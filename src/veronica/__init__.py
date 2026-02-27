@@ -11,6 +11,7 @@ from veronica.metrics_subscriber import MetricsSubscriber
 from veronica.redis_arbiter import RedisArbiter
 from veronica.regression_cost_model import RegressionCostModel
 from veronica.structured_log_subscriber import StructuredLogSubscriber
+from veronica.metrics_exporter import start_metrics_server
 from veronica.types import (
     AnalysisResult,
     BudgetState,
@@ -25,7 +26,7 @@ from veronica.types import (
     StepOutcome,
 )
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 __all__ = [
     # Core
@@ -42,6 +43,8 @@ __all__ = [
     # Phase 4 components
     "MetricsSubscriber",
     "StructuredLogSubscriber",
+    # Phase 5 components
+    "start_metrics_server",
     # Types
     "AnalysisResult",
     "BudgetState",

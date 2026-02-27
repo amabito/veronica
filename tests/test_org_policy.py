@@ -145,3 +145,82 @@ class TestOrgPolicyDenied:
         # after_step committed to store
         history = vos._store.build_history("c1")
         assert history.depth == 1
+
+
+# ---------------------------------------------------------------------------
+# Task 3: VeronicaOS.before_step() integration (validate + clamp + emit)
+# ---------------------------------------------------------------------------
+from veronica.buffered_emitter import BufferedEmitter
+
+
+class TestOrgPolicyIntegration:
+    def test_deny_emits_step_denied_event(self) -> None:
+        """Denied step emits step_denied event with kind."""
+        emitter = BufferedEmitter()
+        events: list[tuple[str, dict]] = []
+        emitter.subscribe("test", lambda et, p: events.append((et, p)))
+
+        vos = VeronicaOS(
+            emitter=emitter,
+            org_policy=OrgPolicy(blocked_models=frozenset({"gpt-4"})),
+        )
+        intent = _intent(model="gpt-4")
+
+        with pytest.raises(OrgPolicyDenied):
+            with vos.step(intent) as ctx:
+                ctx.run(lambda: None)
+
+        denied_events = [(et, p) for et, p in events if et == "step_denied"]
+        assert len(denied_events) == 1
+        _, payload = denied_events[0]
+        assert payload["kind"] == "llm"
+        assert "blocked" in payload["reason"]
+        assert payload["model"] == "gpt-4"
+
+    def test_deny_emitter_failure_no_crash(self) -> None:
+        """Emitter exception during step_denied does not break before_step."""
+        bad_emitter = MagicMock()
+        bad_emitter.emit.side_effect = RuntimeError("emitter broken")
+
+        vos = VeronicaOS(
+            emitter=bad_emitter,
+            org_policy=OrgPolicy(blocked_models=frozenset({"gpt-4"})),
+        )
+        intent = _intent(model="gpt-4")
+
+        # before_step still returns a StepHandle (doesn't crash)
+        handle = vos.before_step(intent)
+        assert handle.decision_meta.org_denial is not None
+
+    def test_clamp_integration(self) -> None:
+        """Planner output is clamped by org policy before reaching Arbiter."""
+        spy_arbiter = MagicMock()
+        spy_arbiter.arbitrate.return_value = {
+            "c1": PolicyConfig(
+                chain_id="c1", ceiling_usd=5.0, on_exceed="halt",
+                issued_at=time.time(),
+            ),
+        }
+
+        vos = VeronicaOS(
+            arbiter=spy_arbiter,
+            org_policy=OrgPolicy(max_ceiling_usd=5.0),
+        )
+        intent = _intent(model="gpt-4")
+
+        vos.before_step(intent)
+
+        # Verify arbiter was called with clamped desired
+        call_args = spy_arbiter.arbitrate.call_args
+        desired_list = call_args[0][0]  # first positional arg
+        assert desired_list[0].ceiling_usd <= 5.0
+
+    def test_no_org_policy_passthrough(self) -> None:
+        """org_policy=None means all existing behavior unchanged."""
+        vos = VeronicaOS()  # no org_policy
+        intent = _intent(model="gpt-4")
+
+        handle = vos.before_step(intent)
+
+        assert handle.decision_meta.org_denial is None
+        assert handle.policy.ceiling_usd > 0

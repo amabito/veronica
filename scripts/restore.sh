@@ -84,8 +84,8 @@ fi
 # 2. Report JSON export contents
 # ---------------------------------------------------------------------------
 if [[ -f "${EXPORT_FILE}" ]]; then
-    POLICY_COUNT=$(python3 -c "import json; d=json.load(open('${EXPORT_FILE}')); print(len(d.get('policies',[])))" 2>/dev/null || echo "?")
-    EVENT_COUNT=$(python3 -c "import json; d=json.load(open('${EXPORT_FILE}')); print(len(d.get('events',[])))" 2>/dev/null || echo "?")
+    POLICY_COUNT=$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(len(d.get('policies',[])))" "${EXPORT_FILE}" 2>/dev/null || echo "?")
+    EVENT_COUNT=$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(len(d.get('events',[])))" "${EXPORT_FILE}" 2>/dev/null || echo "?")
     echo "[restore] JSON export found: policies=${POLICY_COUNT}, events=${EVENT_COUNT}"
     echo "[restore] NOTE: POST /import is not yet implemented."
     echo "          To reload policies, use PUT /policies/{chain_id} for each entry in export.json."

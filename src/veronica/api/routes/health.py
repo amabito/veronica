@@ -42,10 +42,12 @@ def _check_store(request: Request) -> str:
     store_obj = getattr(store, "store", None)
     if store_obj is None:
         return "unavailable"
-    # Probe: call build_history with a dummy chain_id; any exception = unavailable
+    # Probe: check that the store object exists and has the expected interface.
+    # Do NOT call build_history to avoid polluting audit logs with probe entries.
     try:
-        store_obj.build_history("__health_probe__", limit=1)
-        return "ok"
+        if callable(getattr(store_obj, "build_history", None)):
+            return "ok"
+        return "unavailable"
     except Exception:
         return "unavailable"
 

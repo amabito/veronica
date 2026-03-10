@@ -2,16 +2,21 @@
 """GET /export endpoint -- full JSON dump of policies and recent events."""
 from __future__ import annotations
 
+import logging
 import time
 from typing import Any
 
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(tags=["export"])
 
 _DEFAULT_EVENT_LIMIT = 10_000
 _MAX_EVENT_LIMIT = 100_000
+_POLICY_PAGE_SIZE = 1_000
+_MAX_POLICY_PAGES = 1_000  # circuit breaker: 1M policies max
 
 
 @router.get("/export", summary="Export policies and events as JSON")
@@ -35,14 +40,23 @@ async def export_data(
           "exported_at": 1234567890.123,
           "veronica_version": "0.7.1",
           "policies": [ { ...PolicyResponse fields... } ],
-          "events": [ { ...EventItem fields... } ]
+          "events": [ { ...EventItem fields... } ],
+          "warnings": []
         }
     """
+    warnings: list[str] = []
     registry = request.app.state.registry
 
-    # Collect all policies
+    # Collect all policies with pagination to avoid silent truncation
     policies: list[dict[str, Any]] = []
-    all_bundles, _ = registry.list_policies(page=1, per_page=10_000)
+    all_bundles: list[Any] = []
+    page = 1
+    while page <= _MAX_POLICY_PAGES:
+        chunk, total = registry.list_policies(page=page, per_page=_POLICY_PAGE_SIZE)
+        all_bundles.extend(chunk)
+        if len(all_bundles) >= total or not chunk:
+            break
+        page += 1
     for bundle in all_bundles:
         p = bundle.policy
         policies.append({
@@ -85,8 +99,9 @@ async def export_data(
                 "audit_id": outcome.audit_id,
                 "timestamp": outcome.timestamp,
             })
-    except Exception:
-        # Export policies even if event collection fails
+    except Exception as exc:
+        logger.warning("Event collection failed during export: %s", exc)
+        warnings.append("Event collection failed; events list may be incomplete")
         events = []
 
     try:
@@ -94,10 +109,12 @@ async def export_data(
     except Exception:
         _version = "unknown"
 
-    payload = {
+    payload: dict[str, Any] = {
         "exported_at": time.time(),
         "veronica_version": _version,
         "policies": policies,
         "events": events,
     }
+    if warnings:
+        payload["warnings"] = warnings
     return JSONResponse(content=payload)

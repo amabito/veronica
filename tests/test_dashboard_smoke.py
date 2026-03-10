@@ -11,7 +11,9 @@ import time
 
 import pytest
 
-_DEPLOY_DIR = "deploy"
+import pathlib
+
+_DEPLOY_DIR = str(pathlib.Path(__file__).parent.parent)
 
 
 def _docker_available() -> bool:

@@ -2,8 +2,11 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install uv
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+# Install uv (pinned version for reproducibility)
+COPY --from=ghcr.io/astral-sh/uv:0.6 /uv /usr/local/bin/uv
+
+# Keep uv cache under /app so non-root user can access it
+ENV UV_CACHE_DIR=/app/.cache/uv
 
 # Copy dependency files first for layer caching
 COPY pyproject.toml uv.lock ./
@@ -15,8 +18,14 @@ RUN uv sync --frozen --no-dev --extra metrics
 COPY src/ ./src/
 COPY static/ ./static/
 
-# Install the package
-RUN uv pip install --no-deps -e .
+# Install the package (non-editable for production)
+RUN uv pip install --no-deps .
+
+# Run as non-root
+RUN groupadd --gid 1001 veronica && \
+    useradd --uid 1001 --gid 1001 --no-create-home veronica && \
+    chown -R veronica:veronica /app
+USER veronica
 
 EXPOSE 8000
 

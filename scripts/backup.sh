@@ -70,8 +70,8 @@ if [[ -n "${VERONICA_API_KEY}" ]]; then
     CURL_ARGS+=(--header "X-Veronica-Key: ${VERONICA_API_KEY}")
 fi
 if curl "${CURL_ARGS[@]}" "${VERONICA_URL}/export"; then
-    POLICY_COUNT=$(python3 -c "import json; d=json.load(open('${DEST}/export.json')); print(len(d.get('policies',[])))" 2>/dev/null || echo "?")
-    EVENT_COUNT=$(python3 -c "import json; d=json.load(open('${DEST}/export.json')); print(len(d.get('events',[])))" 2>/dev/null || echo "?")
+    POLICY_COUNT=$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(len(d.get('policies',[])))" "${DEST}/export.json" 2>/dev/null || echo "?")
+    EVENT_COUNT=$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(len(d.get('events',[])))" "${DEST}/export.json" 2>/dev/null || echo "?")
     echo "[backup] JSON export: OK (policies=${POLICY_COUNT}, events=${EVENT_COUNT})"
 else
     echo "[backup] ERROR: Failed to export from ${VERONICA_URL}/export" >&2
@@ -81,13 +81,16 @@ fi
 # ---------------------------------------------------------------------------
 # 3. Write manifest
 # ---------------------------------------------------------------------------
-cat > "${DEST}/manifest.json" <<MANIFEST
-{
-  "timestamp": "${TIMESTAMP}",
-  "veronica_url": "${VERONICA_URL}",
-  "files": ["postgres.dump", "export.json", "manifest.json"]
+python3 -c "
+import json, sys
+manifest = {
+    'timestamp': sys.argv[1],
+    'veronica_url': sys.argv[2],
+    'files': ['postgres.dump', 'export.json', 'manifest.json']
 }
-MANIFEST
+with open(sys.argv[3], 'w') as f:
+    json.dump(manifest, f, indent=2)
+" "${TIMESTAMP}" "${VERONICA_URL}" "${DEST}/manifest.json"
 
 echo "[backup] Manifest written"
 echo "[backup] Done: ${DEST}"

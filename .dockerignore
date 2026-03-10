@@ -16,3 +16,6 @@ tests/
 *.md
 .env
 .env.*
+docker/
+scripts/
+.archive/

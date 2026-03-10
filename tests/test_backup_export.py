@@ -136,11 +136,15 @@ class TestExportEvents:
         resp = client.get("/export?event_limit=5")
         assert resp.status_code == 200
 
-    def test_max_events_out_of_range_returns_422(self, client: TestClient) -> None:
-        """max_events query param: 0 is invalid."""
+    def test_unknown_query_param_ignored(self, client: TestClient) -> None:
+        """Unknown query params are ignored by FastAPI."""
         resp = client.get("/export?max_events=0")
-        # 422 (invalid) or 200 (if param not supported -- falls back to default)
-        assert resp.status_code in {200, 422}
+        assert resp.status_code == 200  # unknown param, uses default event_limit
+
+    def test_event_limit_exceeds_max_returns_422(self, client: TestClient) -> None:
+        """event_limit above MAX_EVENT_LIMIT returns 422."""
+        resp = client.get("/export?event_limit=200000")
+        assert resp.status_code == 422
 
 
 class TestExportAuthentication:

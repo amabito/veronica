@@ -4,6 +4,8 @@ import threading
 
 from veronica.tenants.models import TenantNode
 
+MAX_DEPTH = 100
+
 
 class TenantRegistry:
     """Thread-safe in-memory registry for tenant nodes."""
@@ -12,17 +14,43 @@ class TenantRegistry:
         self._tenants: dict[str, TenantNode] = {}
         self._lock = threading.Lock()
 
+    def _walk_ancestors_unsafe(self, start_id: str) -> list[str]:
+        """Walk ancestor IDs from start_id upward. Caller must hold self._lock.
+
+        Raises RuntimeError if a circular reference is detected (depth > MAX_DEPTH).
+        """
+        visited: list[str] = []
+        current_id: str | None = start_id
+        depth = 0
+        while current_id is not None:
+            if depth >= MAX_DEPTH:
+                raise RuntimeError(
+                    f"Circular parent reference detected while walking ancestors of '{start_id}'"
+                )
+            node = self._tenants.get(current_id)
+            if node is None:
+                break
+            visited.append(current_id)
+            current_id = node.parent_id
+            depth += 1
+        return visited
+
     def register(self, tenant: TenantNode) -> TenantNode:
         """Register a new tenant node.
 
         Raises ValueError if the id already exists or if parent_id is specified
         but does not exist.
+        Raises RuntimeError if registering the tenant would create a circular
+        parent reference.
         """
         with self._lock:
             if tenant.id in self._tenants:
                 raise ValueError(f"Tenant '{tenant.id}' already exists")
             if tenant.parent_id is not None and tenant.parent_id not in self._tenants:
                 raise ValueError(f"Parent tenant '{tenant.parent_id}' not found")
+            # Validate no circular reference: walk the parent chain before inserting
+            if tenant.parent_id is not None:
+                self._walk_ancestors_unsafe(tenant.parent_id)
             self._tenants[tenant.id] = tenant
         return tenant
 
@@ -79,6 +107,7 @@ class TenantRegistry:
         """Return ancestors of the given tenant, root first (excludes self).
 
         Returns an empty list if the tenant has no parent or is not found.
+        Raises RuntimeError if a circular parent reference is detected.
         """
         with self._lock:
             ancestors: list[TenantNode] = []
@@ -86,12 +115,18 @@ class TenantRegistry:
             if current is None:
                 return ancestors
             parent_id = current.parent_id
+            depth = 0
             while parent_id is not None:
+                if depth >= MAX_DEPTH:
+                    raise RuntimeError(
+                        f"Circular parent reference detected while resolving ancestors of '{tenant_id}'"
+                    )
                 parent = self._tenants.get(parent_id)
                 if parent is None:
                     break
                 ancestors.append(parent)
                 parent_id = parent.parent_id
+                depth += 1
             # ancestors is leaf->root order, reverse to root->leaf
             ancestors.reverse()
         return ancestors

@@ -2,11 +2,15 @@
 """Thread-safe in-memory registry for rollout lifecycle management."""
 from __future__ import annotations
 
+import json
 import threading
 from datetime import datetime, timezone
 
 from veronica.rollouts.models import Rollout, RolloutState, StateTransition, new_rollout
 from veronica.types import PolicyConfig
+
+_MAX_SIM_RESULT_SIZE = 65_536  # 64 KB
+_MAX_HISTORY_LENGTH = 1000
 
 
 class InvalidTransitionError(Exception):
@@ -63,10 +67,10 @@ class RolloutRegistry:
             (items, total_count) where items is the page slice.
         """
         with self._lock:
-            all_items = list(self._rollouts.values())
-
-        if state_filter is not None:
-            all_items = [r for r in all_items if r.state == state_filter]
+            if state_filter is not None:
+                all_items = [r for r in self._rollouts.values() if r.state == state_filter]
+            else:
+                all_items = list(self._rollouts.values())
 
         total = len(all_items)
         start = (page - 1) * per_page
@@ -108,6 +112,10 @@ class RolloutRegistry:
                 timestamp=now,
                 actor=actor,
             )
+            if len(rollout.history) >= _MAX_HISTORY_LENGTH:
+                raise InvalidTransitionError(
+                    f"History limit of {_MAX_HISTORY_LENGTH} entries exceeded for rollout '{rollout_id}'"
+                )
             rollout.history.append(transition)
             rollout.state = target_state
             rollout.updated_at = now
@@ -116,10 +124,21 @@ class RolloutRegistry:
     def set_simulation_result(
         self, rollout_id: str, result: dict
     ) -> Rollout:
-        """Store simulation result on an existing rollout (must exist)."""
+        """Store simulation result on an existing rollout (must exist).
+
+        Raises ValueError if the serialized result exceeds _MAX_SIM_RESULT_SIZE bytes.
+        The size check is performed inside the lock to avoid a TOCTOU race where
+        the caller could swap ``result`` between the check and the store.
+        """
         with self._lock:
             rollout = self._rollouts.get(rollout_id)
             if rollout is None:
                 raise KeyError(rollout_id)
+            serialized = json.dumps(result)
+            if len(serialized) > _MAX_SIM_RESULT_SIZE:
+                raise ValueError(
+                    f"simulation_result exceeds {_MAX_SIM_RESULT_SIZE} byte limit "
+                    f"({len(serialized)} bytes)"
+                )
             rollout.simulation_result = result
             return rollout

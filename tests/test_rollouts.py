@@ -91,7 +91,7 @@ class TestGetRollout:
         assert resp.status_code == 200
 
     def test_get_nonexistent_returns_404(self, client: TestClient) -> None:
-        resp = client.get("/rollouts/does-not-exist")
+        resp = client.get("/rollouts/00000000-0000-0000-0000-000000000000")
         assert resp.status_code == 404
 
     def test_get_returns_correct_id(self, client: TestClient) -> None:
@@ -296,24 +296,27 @@ class TestInvalidTransitions:
 # ---------------------------------------------------------------------------
 
 
+_MISSING_UUID = "00000000-0000-0000-0000-000000000000"
+
+
 class TestNotFound:
     def test_get_404(self, client: TestClient) -> None:
-        assert client.get("/rollouts/nonexistent").status_code == 404
+        assert client.get(f"/rollouts/{_MISSING_UUID}").status_code == 404
 
     def test_simulate_404(self, client: TestClient) -> None:
-        assert client.post("/rollouts/nonexistent/simulate").status_code == 404
+        assert client.post(f"/rollouts/{_MISSING_UUID}/simulate").status_code == 404
 
     def test_approve_404(self, client: TestClient) -> None:
-        assert client.post("/rollouts/nonexistent/approve", json={"actor": "qa"}).status_code == 404
+        assert client.post(f"/rollouts/{_MISSING_UUID}/approve", json={"actor": "qa"}).status_code == 404
 
     def test_promote_404(self, client: TestClient) -> None:
-        assert client.post("/rollouts/nonexistent/promote", json={"actor": "ops"}).status_code == 404
+        assert client.post(f"/rollouts/{_MISSING_UUID}/promote", json={"actor": "ops"}).status_code == 404
 
     def test_activate_404(self, client: TestClient) -> None:
-        assert client.post("/rollouts/nonexistent/activate", json={"actor": "ops"}).status_code == 404
+        assert client.post(f"/rollouts/{_MISSING_UUID}/activate", json={"actor": "ops"}).status_code == 404
 
     def test_revoke_404(self, client: TestClient) -> None:
-        assert client.post("/rollouts/nonexistent/revoke", json={"actor": "admin"}).status_code == 404
+        assert client.post(f"/rollouts/{_MISSING_UUID}/revoke", json={"actor": "admin"}).status_code == 404
 
 
 # ---------------------------------------------------------------------------

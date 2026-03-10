@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, Query, Request
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, Path, Query, Request
+from pydantic import BaseModel, Field
 
 from veronica.api.routes.simulate import _build_policy
 from veronica.rollouts.models import Rollout, RolloutState
@@ -16,6 +16,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/rollouts", tags=["rollouts"])
 
+_UUID_RE = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+SafeRolloutId = Annotated[str, Path(pattern=_UUID_RE)]
+
 
 # ---------------------------------------------------------------------------
 # Pydantic API schemas
@@ -24,11 +27,11 @@ router = APIRouter(prefix="/rollouts", tags=["rollouts"])
 
 class CreateRolloutRequest(BaseModel):
     policy_config: dict[str, Any]
-    created_by: str
+    created_by: str = Field(min_length=1, max_length=256, pattern=r"^[a-zA-Z0-9@._-]+$")
 
 
 class ActorRequest(BaseModel):
-    actor: str
+    actor: str = Field(min_length=1, max_length=256, pattern=r"^[a-zA-Z0-9@._-]+$")
 
 
 class StateTransitionResponse(BaseModel):
@@ -131,14 +134,14 @@ async def list_rollouts(
 
 
 @router.get("/{rollout_id}", response_model=RolloutResponse, summary="Get rollout")
-async def get_rollout(rollout_id: str, request: Request) -> RolloutResponse:
+async def get_rollout(rollout_id: SafeRolloutId, request: Request) -> RolloutResponse:
     """Return a rollout by ID. 404 if not found."""
     rollout = _get_rollout_or_404(request, rollout_id)
     return _rollout_to_response(rollout)
 
 
 @router.post("/{rollout_id}/simulate", response_model=RolloutResponse, summary="Simulate rollout")
-async def simulate_rollout(rollout_id: str, request: Request) -> RolloutResponse:
+async def simulate_rollout(rollout_id: SafeRolloutId, request: Request) -> RolloutResponse:
     """Run PolicyDistributor simulation, store result, and transition to SIMULATED."""
     rollout = _get_rollout_or_404(request, rollout_id)
 
@@ -163,7 +166,7 @@ async def simulate_rollout(rollout_id: str, request: Request) -> RolloutResponse
 
 @router.post("/{rollout_id}/approve", response_model=RolloutResponse, summary="Approve rollout")
 async def approve_rollout(
-    rollout_id: str, body: ActorRequest, request: Request
+    rollout_id: SafeRolloutId, body: ActorRequest, request: Request
 ) -> RolloutResponse:
     """Transition rollout to APPROVED."""
     rollout = _do_transition(request, rollout_id, RolloutState.APPROVED, actor=body.actor)
@@ -172,7 +175,7 @@ async def approve_rollout(
 
 @router.post("/{rollout_id}/promote", response_model=RolloutResponse, summary="Promote rollout")
 async def promote_rollout(
-    rollout_id: str, body: ActorRequest, request: Request
+    rollout_id: SafeRolloutId, body: ActorRequest, request: Request
 ) -> RolloutResponse:
     """Transition rollout to PROMOTED."""
     rollout = _do_transition(request, rollout_id, RolloutState.PROMOTED, actor=body.actor)
@@ -181,24 +184,56 @@ async def promote_rollout(
 
 @router.post("/{rollout_id}/activate", response_model=RolloutResponse, summary="Activate rollout")
 async def activate_rollout(
-    rollout_id: str, body: ActorRequest, request: Request
+    rollout_id: SafeRolloutId, body: ActorRequest, request: Request
 ) -> RolloutResponse:
-    """Transition rollout to ACTIVE and register the policy."""
-    rollout = _do_transition(request, rollout_id, RolloutState.ACTIVE, actor=body.actor)
+    """Transition rollout to ACTIVE and register the policy.
 
-    # Register policy in PolicyRegistry (best-effort, don't fail activation on error)
+    Policy registration is attempted FIRST. If it fails, the rollout remains
+    in its current state and a 409 is returned. Only after successful
+    registration is the state transitioned to ACTIVE. If the state transition
+    fails after successful registration, the policy is still live; the
+    inconsistency is logged and a 200 with the pre-transition rollout is
+    returned (the core purpose -- making the policy active -- is achieved).
+    """
+    rollout = _get_rollout_or_404(request, rollout_id)
+
+    # Register policy FIRST -- if this fails, we must not transition state
+    policy_registry = request.app.state.registry
     try:
-        policy_registry = request.app.state.registry
         policy_registry.register(rollout.policy_config)
     except Exception as exc:
         logger.warning("[rollout activate] policy registration error: %s", exc)
+        raise HTTPException(
+            status_code=409,
+            detail=f"Policy registration failed; rollout state unchanged: {exc}",
+        ) from exc
+
+    # Registration succeeded -- now transition state.
+    # InvalidTransitionError (409) is propagated: the caller must correct the
+    # rollout state before activating. Other unexpected errors (e.g. lock
+    # failures) are swallowed with a warning -- the policy is already live so
+    # returning 200 avoids a confusing failure after the core work is done.
+    try:
+        rollout = _do_transition(request, rollout_id, RolloutState.ACTIVE, actor=body.actor)
+    except HTTPException as exc:
+        if exc.status_code == 409:
+            # Invalid state transition -- re-raise so caller knows they must
+            # follow the proper lifecycle before activating.
+            raise
+        # Non-409 HTTP error after successful registration: policy is live,
+        # state is inconsistent. Log and return pre-transition rollout.
+        logger.warning(
+            "[rollout activate] policy registered but state transition failed for '%s': %s",
+            rollout_id,
+            exc.detail,
+        )
 
     return _rollout_to_response(rollout)
 
 
 @router.post("/{rollout_id}/revoke", response_model=RolloutResponse, summary="Revoke rollout")
 async def revoke_rollout(
-    rollout_id: str, body: ActorRequest, request: Request
+    rollout_id: SafeRolloutId, body: ActorRequest, request: Request
 ) -> RolloutResponse:
     """Transition rollout to REVOKED (terminal state)."""
     rollout = _do_transition(request, rollout_id, RolloutState.REVOKED, actor=body.actor)

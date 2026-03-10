@@ -17,6 +17,7 @@ Steps are processed in timestamp order.
 """
 from __future__ import annotations
 
+import logging
 import time
 from typing import Any
 
@@ -25,8 +26,11 @@ from veronica.replay.models import DecisionDiff, ReplayRequest, ReplayResult
 from veronica.schemas.events import StepOutcome
 from veronica.types import PolicyConfig
 
+logger = logging.getLogger(__name__)
+
 _HALT = "halt"
 _ALLOW = "allow"
+_MAX_REPLAY_EVENTS = 100_000
 
 
 def _build_override_policy(override: dict[str, Any]) -> PolicyConfig:
@@ -38,8 +42,8 @@ def _build_override_policy(override: dict[str, Any]) -> PolicyConfig:
     Raises ValueError on invalid input.
     """
     chain_id = override.get("chain_id")
-    if not chain_id:
-        raise ValueError("override_policy.chain_id is required")
+    if not isinstance(chain_id, str) or not chain_id.strip():
+        raise ValueError("override_policy.chain_id must be a non-empty string")
 
     ceiling_usd = override.get("ceiling_usd")
     if ceiling_usd is None:
@@ -53,12 +57,18 @@ def _build_override_policy(override: dict[str, Any]) -> PolicyConfig:
         ceiling_usd = float(ceiling_usd)
     except (TypeError, ValueError) as exc:
         raise ValueError(f"override_policy.ceiling_usd must be numeric, got {ceiling_usd!r}") from exc
+    if ceiling_usd < 0:
+        raise ValueError(f"override_policy.ceiling_usd must be >= 0, got {ceiling_usd!r}")
 
     ceiling_steps_raw = override.get("ceiling_steps")
     ceiling_steps = int(ceiling_steps_raw) if ceiling_steps_raw is not None else None
+    if ceiling_steps is not None and ceiling_steps < 0:
+        raise ValueError(f"override_policy.ceiling_steps must be >= 0, got {ceiling_steps!r}")
 
     ceiling_tokens_out_raw = override.get("ceiling_tokens_out")
     ceiling_tokens_out = int(ceiling_tokens_out_raw) if ceiling_tokens_out_raw is not None else None
+    if ceiling_tokens_out is not None and ceiling_tokens_out < 0:
+        raise ValueError(f"override_policy.ceiling_tokens_out must be >= 0, got {ceiling_tokens_out!r}")
 
     return PolicyConfig(
         chain_id=str(chain_id),
@@ -136,6 +146,26 @@ class ReplayEngine:
             )
         ]
 
+        # Build and validate override policy BEFORE touching events so that
+        # invalid inputs always return an error regardless of event count.
+        override_policy: PolicyConfig | None = None
+        if request.override_policy is not None:
+            try:
+                override_policy = _build_override_policy(request.override_policy)
+                self._distributor._validate(override_policy)
+            except (ValueError, PolicyValidationError) as exc:
+                raise ValueError(f"Invalid override_policy: {exc}") from exc
+
+        # Cap at _MAX_REPLAY_EVENTS to prevent excessive memory usage
+        if len(events) > _MAX_REPLAY_EVENTS:
+            logger.warning(
+                "[replay] chain '%s' has %d events, truncating to %d",
+                request.chain_id,
+                len(events),
+                _MAX_REPLAY_EVENTS,
+            )
+            events = events[:_MAX_REPLAY_EVENTS]
+
         # Sort deterministically by timestamp then step_id
         events.sort(key=lambda e: (e.timestamp, e.step_id))
 
@@ -147,15 +177,6 @@ class ReplayEngine:
                 changed_count=0,
                 summary=f"No events found for chain '{request.chain_id}' in the requested time range.",
             )
-
-        # Build override policy if provided
-        override_policy: PolicyConfig | None = None
-        if request.override_policy is not None:
-            try:
-                override_policy = _build_override_policy(request.override_policy)
-                self._distributor._validate(override_policy)
-            except (ValueError, PolicyValidationError) as exc:
-                raise ValueError(f"Invalid override_policy: {exc}") from exc
 
         diffs: list[DecisionDiff] = []
         cumulative_cost = 0.0

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import time
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, Request, Response
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, Path, Request, Response
+from pydantic import BaseModel, Field
 
 from veronica.tenants.models import TenantNode
 from veronica.tenants.resolver import PolicyResolver
@@ -14,6 +14,42 @@ router = APIRouter(prefix="/tenants", tags=["tenants"])
 
 _resolver = PolicyResolver()
 
+_SAFE_ID_RE = r"^[a-zA-Z0-9_-]+$"
+SafeTenantId = Annotated[str, Path(min_length=1, max_length=128, pattern=_SAFE_ID_RE)]
+
+_KNOWN_OVERRIDE_KEYS = {
+    "ceiling_usd",
+    "on_exceed",
+    "ceiling_tokens_out",
+    "ceiling_steps",
+    "fallback_model",
+    "timeout_ms",
+    "rate_window_seconds",
+    "rate_ceiling_calls",
+    "priority",
+    "deadline_ts",
+    "expires_at",
+    "planner_version",
+}
+
+
+def _validate_overrides(overrides: dict) -> None:
+    """Validate policy_overrides keys against the known field set.
+
+    Raises HTTPException(422) for unknown keys or if the key count exceeds 20.
+    """
+    unknown = set(overrides.keys()) - _KNOWN_OVERRIDE_KEYS
+    if unknown:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unknown policy_overrides keys: {sorted(unknown)}",
+        )
+    if len(overrides) > 20:
+        raise HTTPException(
+            status_code=422,
+            detail="policy_overrides limited to 20 keys",
+        )
+
 
 # ---------------------------------------------------------------------------
 # Request / response schemas
@@ -21,14 +57,19 @@ _resolver = PolicyResolver()
 
 
 class TenantCreateRequest(BaseModel):
-    id: str
-    name: str
-    parent_id: str | None = None
+    id: str = Field(min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_-]+$")
+    name: str = Field(min_length=1, max_length=256)
+    parent_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=128,
+        pattern=r"^[a-zA-Z0-9_-]+$",
+    )
     policy_overrides: dict[str, Any] = {}
 
 
 class TenantUpdateRequest(BaseModel):
-    name: str | None = None
+    name: str | None = Field(default=None, min_length=1, max_length=256)
     policy_overrides: dict[str, Any] | None = None
 
 
@@ -100,7 +141,7 @@ async def list_tenants(request: Request) -> list[TenantResponse]:
 
 
 @router.get("/{tenant_id}", response_model=TenantResponse, summary="Get tenant by ID")
-async def get_tenant(tenant_id: str, request: Request) -> TenantResponse:
+async def get_tenant(tenant_id: SafeTenantId, request: Request) -> TenantResponse:
     registry = request.app.state.tenant_registry
     node = registry.get(tenant_id)
     if node is None:
@@ -110,6 +151,7 @@ async def get_tenant(tenant_id: str, request: Request) -> TenantResponse:
 
 @router.post("", response_model=TenantResponse, status_code=201, summary="Create tenant")
 async def create_tenant(body: TenantCreateRequest, request: Request) -> TenantResponse:
+    _validate_overrides(body.policy_overrides)
     registry = request.app.state.tenant_registry
     node = TenantNode(
         id=body.id,
@@ -126,8 +168,10 @@ async def create_tenant(body: TenantCreateRequest, request: Request) -> TenantRe
 
 @router.put("/{tenant_id}", response_model=TenantResponse, summary="Update tenant")
 async def update_tenant(
-    tenant_id: str, body: TenantUpdateRequest, request: Request
+    tenant_id: SafeTenantId, body: TenantUpdateRequest, request: Request
 ) -> TenantResponse:
+    if body.policy_overrides is not None:
+        _validate_overrides(body.policy_overrides)
     registry = request.app.state.tenant_registry
     updates: dict[str, Any] = {}
     if body.name is not None:
@@ -142,7 +186,7 @@ async def update_tenant(
 
 
 @router.delete("/{tenant_id}", status_code=204, summary="Delete tenant")
-async def delete_tenant(tenant_id: str, request: Request) -> Response:
+async def delete_tenant(tenant_id: SafeTenantId, request: Request) -> Response:
     registry = request.app.state.tenant_registry
     try:
         registry.delete(tenant_id)
@@ -158,7 +202,7 @@ async def delete_tenant(tenant_id: str, request: Request) -> Response:
     response_model=EffectivePolicyResponse,
     summary="Get effective policy for tenant (with inheritance)",
 )
-async def get_effective_policy(tenant_id: str, request: Request) -> EffectivePolicyResponse:
+async def get_effective_policy(tenant_id: SafeTenantId, request: Request) -> EffectivePolicyResponse:
     registry = request.app.state.tenant_registry
     node = registry.get(tenant_id)
     if node is None:

@@ -39,7 +39,13 @@ class ReplayResponse(BaseModel):
 class ReplayRequestBody(BaseModel):
     """Request body for POST /replay."""
 
-    chain_id: str = Field(..., min_length=1, description="Chain scope to replay")
+    chain_id: str = Field(
+        ...,
+        min_length=1,
+        max_length=256,
+        pattern=r"^[a-zA-Z0-9_:@.\-]+$",
+        description="Chain scope to replay",
+    )
     from_timestamp: float = Field(..., description="Unix epoch seconds (inclusive lower bound)")
     to_timestamp: float = Field(..., description="Unix epoch seconds (inclusive upper bound)")
     override_policy: dict[str, Any] | None = Field(
@@ -88,17 +94,6 @@ async def replay(request: Request, body: ReplayRequestBody) -> ReplayResponse:
         to_timestamp=body.to_timestamp,
         override_policy=body.override_policy,
     )
-
-    # Validate override_policy eagerly before touching the store
-    if body.override_policy is not None:
-        from veronica.replay.engine import _build_override_policy
-        from veronica.distribution.policy_distributor import PolicyValidationError
-
-        try:
-            candidate = _build_override_policy(body.override_policy)
-            distributor._validate(candidate)
-        except (ValueError, PolicyValidationError) as exc:
-            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     try:
         result = engine.replay(replay_request)

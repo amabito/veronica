@@ -2,7 +2,9 @@
 """Policy CRUD endpoints: GET /policies, GET /policies/{id}, PUT /policies/{id}."""
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from typing import Annotated
+
+from fastapi import APIRouter, HTTPException, Path, Query, Request
 
 from veronica.api.schemas import PolicyListResponse, PolicyResponse, PolicySummary, PolicyUpdateRequest
 from veronica.distribution.policy_distributor import PolicyBundle, PolicyValidationError
@@ -64,8 +66,12 @@ async def list_policies(
     )
 
 
+_CHAIN_ID_RE = r"^[a-zA-Z0-9_:@.\-]+$"
+SafeChainId = Annotated[str, Path(min_length=1, max_length=256, pattern=_CHAIN_ID_RE)]
+
+
 @router.get("/{chain_id}", response_model=PolicyResponse, summary="Get policy by ID")
-async def get_policy(chain_id: str, request: Request) -> PolicyResponse:
+async def get_policy(chain_id: SafeChainId, request: Request) -> PolicyResponse:
     """Return the full PolicyConfig for a given chain_id.
 
     Returns 404 if the policy does not exist.
@@ -79,7 +85,7 @@ async def get_policy(chain_id: str, request: Request) -> PolicyResponse:
 
 @router.put("/{chain_id}", response_model=PolicyResponse, summary="Update policy")
 async def update_policy(
-    chain_id: str,
+    chain_id: SafeChainId,
     body: PolicyUpdateRequest,
     request: Request,
 ) -> PolicyResponse:
@@ -110,7 +116,7 @@ async def update_policy(
     except PolicyValidationError as exc:
         # Must be caught before ValueError (PolicyValidationError is a subclass)
         raise HTTPException(status_code=422, detail=str(exc))
-    except ValueError as exc:
-        raise HTTPException(status_code=409, detail=str(exc))
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=409, detail="Version conflict or invalid update fields")
 
     return _bundle_to_response(bundle)

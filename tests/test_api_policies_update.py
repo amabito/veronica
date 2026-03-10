@@ -162,7 +162,7 @@ class TestUpdatePolicyErrors:
             json={"current_version": 9999, "ceiling_usd": 1.0},
         )
         assert resp.status_code == 409
-        assert "stale" in resp.json()["detail"].lower()
+        assert "conflict" in resp.json()["detail"].lower()
 
     def test_422_for_invalid_ceiling_usd(self, client):
         registry = client.app.state.registry

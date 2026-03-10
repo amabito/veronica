@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import logging
+import re
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -21,6 +23,8 @@ logger = logging.getLogger(__name__)
 
 _EMA_ALPHA = 0.3
 _EPS = 1e-12
+_MAX_CHAINS = 10_000
+_SAFE_CHAIN_RE = re.compile(r"^[a-zA-Z0-9_:@.\-]{1,256}$")
 
 
 def _ema(prev: float, current: float, alpha: float = _EMA_ALPHA) -> float:
@@ -66,14 +70,14 @@ class _ChainStats:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> _ChainStats:
         s = cls()
-        s.cost_ema = data.get("cost_ema", 0.0)
-        s.cost_ema_by_model = dict(data.get("cost_ema_by_model", {}))
-        s.latency_ema_by_model = dict(data.get("latency_ema_by_model", {}))
-        s.success_streak = data.get("success_streak", 0)
-        s.failure_streak = data.get("failure_streak", 0)
-        s.total_commits = data.get("total_commits", 0)
-        s.budget_headroom_ratio = data.get("budget_headroom_ratio", 1.0)
-        s.commits_since_rotate = data.get("commits_since_rotate", 0)
+        s.cost_ema = float(data.get("cost_ema", 0.0))
+        s.cost_ema_by_model = {str(k): float(v) for k, v in dict(data.get("cost_ema_by_model", {})).items()}
+        s.latency_ema_by_model = {str(k): float(v) for k, v in dict(data.get("latency_ema_by_model", {})).items()}
+        s.success_streak = int(data.get("success_streak", 0))
+        s.failure_streak = int(data.get("failure_streak", 0))
+        s.total_commits = int(data.get("total_commits", 0))
+        s.budget_headroom_ratio = float(data.get("budget_headroom_ratio", 1.0))
+        s.commits_since_rotate = int(data.get("commits_since_rotate", 0))
         return s
 
 
@@ -97,16 +101,27 @@ class FileStore:
         self._chain_stats: dict[str, _ChainStats] = {}
         self._budget_ceiling: float | None = None
         self._budget_remaining: float | None = None
+        self._lock = threading.Lock()
         self._load_existing_stats()
+
+    @staticmethod
+    def _validate_chain_id(chain_id: str) -> None:
+        """Validate chain_id to prevent path traversal and other attacks."""
+        if not _SAFE_CHAIN_RE.match(chain_id):
+            raise ValueError(f"Invalid chain_id: must match {_SAFE_CHAIN_RE.pattern!r}")
 
     def set_budget_context(self, ceiling_usd: float, remaining_usd: float) -> None:
         """Inject budget context for the next commit. Consumed on commit."""
-        self._budget_ceiling = ceiling_usd
-        self._budget_remaining = remaining_usd
+        with self._lock:
+            self._budget_ceiling = ceiling_usd
+            self._budget_remaining = remaining_usd
 
     def _load_existing_stats(self) -> None:
         for stats_path in self._data_dir.glob("*_stats.json"):
-            chain_id = stats_path.stem.replace("_stats", "")
+            chain_id = stats_path.stem.removesuffix("_stats")
+            if not _SAFE_CHAIN_RE.match(chain_id):
+                logger.warning("Skipping stats file with invalid chain_id: %s", stats_path.name)
+                continue
             try:
                 data = json.loads(stats_path.read_text())
                 self._chain_stats[chain_id] = _ChainStats.from_dict(data)
@@ -123,72 +138,83 @@ class FileStore:
         meta: DecisionMeta,
     ) -> None:
         chain_id = outcome.chain_id
+        self._validate_chain_id(chain_id)
 
-        # 1. Append JSONL
-        record = {
-            "outcome": {
-                "step_id": outcome.step_id,
-                "request_id": outcome.request_id,
-                "chain_id": outcome.chain_id,
-                "kind": outcome.kind,
-                "status": outcome.status,
-                "cost_usd": outcome.cost_usd,
-                "tokens_in": outcome.tokens_in,
-                "tokens_out": outcome.tokens_out,
-                "elapsed_ms": outcome.elapsed_ms,
-                "model": outcome.model,
-                "timestamp_ms": outcome.timestamp_ms,
-            },
-            "analysis": {
-                "risk_level": analysis.risk_level,
-                "recommendation": analysis.recommendation,
-            },
-        }
-        jsonl_path = self._data_dir / f"{chain_id}.jsonl"
-        with open(jsonl_path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(record) + "\n")
+        with self._lock:
+            # Reject new chains beyond the cap
+            if chain_id not in self._chain_stats and len(self._chain_stats) >= _MAX_CHAINS:
+                raise ValueError(
+                    f"Chain limit ({_MAX_CHAINS}) reached; cannot create chain '{chain_id}'"
+                )
 
-        # 2. Update stats
-        stats = self._chain_stats.setdefault(chain_id, _ChainStats())
-        stats.cost_ema = _ema(stats.cost_ema, outcome.cost_usd)
+            # 1. Append JSONL
+            record = {
+                "outcome": {
+                    "step_id": outcome.step_id,
+                    "request_id": outcome.request_id,
+                    "chain_id": outcome.chain_id,
+                    "kind": outcome.kind,
+                    "status": outcome.status,
+                    "cost_usd": outcome.cost_usd,
+                    "tokens_in": outcome.tokens_in,
+                    "tokens_out": outcome.tokens_out,
+                    "elapsed_ms": outcome.elapsed_ms,
+                    "model": outcome.model,
+                    "timestamp_ms": outcome.timestamp_ms,
+                },
+                "analysis": {
+                    "risk_level": analysis.risk_level,
+                    "recommendation": analysis.recommendation,
+                },
+            }
+            jsonl_path = self._data_dir / f"{chain_id}.jsonl"
+            with open(jsonl_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(record) + "\n")
 
-        model_key = outcome.model or "unknown"
-        prev_cost = stats.cost_ema_by_model.get(model_key, 0.0)
-        stats.cost_ema_by_model[model_key] = _ema(prev_cost, outcome.cost_usd)
+            # 2. Update stats
+            stats = self._chain_stats.setdefault(chain_id, _ChainStats())
+            stats.cost_ema = _ema(stats.cost_ema, outcome.cost_usd)
 
-        prev_lat = stats.latency_ema_by_model.get(model_key, 0.0)
-        stats.latency_ema_by_model[model_key] = _ema(prev_lat, outcome.elapsed_ms)
+            model_key = outcome.model or "unknown"
+            prev_cost = stats.cost_ema_by_model.get(model_key, 0.0)
+            stats.cost_ema_by_model[model_key] = _ema(prev_cost, outcome.cost_usd)
 
-        # 3. Streaks
-        if outcome.status == "ok":
-            stats.success_streak += 1
-            stats.failure_streak = 0
-        else:
-            stats.failure_streak += 1
-            stats.success_streak = 0
+            prev_lat = stats.latency_ema_by_model.get(model_key, 0.0)
+            stats.latency_ema_by_model[model_key] = _ema(prev_lat, outcome.elapsed_ms)
 
-        stats.total_commits += 1
+            # 3. Streaks
+            if outcome.status == "ok":
+                stats.success_streak += 1
+                stats.failure_streak = 0
+            else:
+                stats.failure_streak += 1
+                stats.success_streak = 0
 
-        # Consume budget context
-        ceiling = self._budget_ceiling
-        remaining = self._budget_remaining
-        self._budget_ceiling = None
-        self._budget_remaining = None
-        if ceiling is not None and remaining is not None and ceiling > _EPS:
-            stats.budget_headroom_ratio = remaining / ceiling
+            stats.total_commits += 1
 
-        # 4. Periodic flush
-        if stats.total_commits % self._flush_interval == 0:
-            self._flush_stats(chain_id)
+            # Consume budget context
+            ceiling = self._budget_ceiling
+            remaining = self._budget_remaining
+            self._budget_ceiling = None
+            self._budget_remaining = None
+            if ceiling is not None and remaining is not None and ceiling > _EPS:
+                stats.budget_headroom_ratio = remaining / ceiling
 
-        # 5. Rotation check (Rule C: only after successful commit)
-        stats.commits_since_rotate += 1
-        if stats.commits_since_rotate >= self._max_lines:
-            if self._rotate(chain_id):
-                stats.commits_since_rotate = 0
-            # else: rotation failed (Rule D), will retry next commit
+            # 4. Periodic flush
+            if stats.total_commits % self._flush_interval == 0:
+                self._flush_stats(chain_id)
+
+            # 5. Rotation check (Rule C: only after successful commit)
+            stats.commits_since_rotate += 1
+            if stats.commits_since_rotate >= self._max_lines:
+                if self._rotate(chain_id):
+                    stats.commits_since_rotate = 0
+                # else: rotation failed (Rule D), will retry next commit
+
+    _MAX_HISTORY_LIMIT = 50_000
 
     def build_history(self, chain_id: str, limit: int = 50) -> HistoryView:
+        limit = max(1, min(limit, self._MAX_HISTORY_LIMIT))
         stats = self._chain_stats.get(chain_id, _ChainStats())
         outcomes = self._load_recent_outcomes(chain_id, limit)
         last_n = tuple(outcomes)
@@ -211,8 +237,14 @@ class FileStore:
         )
 
     def close(self) -> None:
-        for chain_id in self._chain_stats:
-            self._flush_stats(chain_id)
+        with self._lock:
+            snapshots = {cid: s.to_dict() for cid, s in self._chain_stats.items()}
+        for chain_id, data in snapshots.items():
+            stats_path = self._data_dir / f"{chain_id}_stats.json"
+            try:
+                stats_path.write_text(json.dumps(data), encoding="utf-8")
+            except OSError:
+                logger.warning("Failed to flush stats for %s on close", chain_id)
 
     def _flush_stats(self, chain_id: str) -> None:
         stats = self._chain_stats.get(chain_id)
@@ -254,30 +286,38 @@ class FileStore:
         if not path.exists():
             return []
         records: list[StepOutcome] = []
-        for line in open(path, encoding="utf-8"):
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                rec = json.loads(line)
-            except json.JSONDecodeError:
-                logger.warning("Corrupt JSONL line in %s, skipping", path)
-                continue
-            o = rec["outcome"]
-            records.append(StepOutcome(
-                step_id=o["step_id"],
-                request_id=o["request_id"],
-                chain_id=o["chain_id"],
-                kind=o["kind"],
-                status=o["status"],
-                cost_usd=o["cost_usd"],
-                tokens_in=o["tokens_in"],
-                tokens_out=o["tokens_out"],
-                elapsed_ms=o["elapsed_ms"],
-                model=o.get("model"),
-                events=(),
-                timestamp_ms=o["timestamp_ms"],
-            ))
+        with open(path, encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except json.JSONDecodeError:
+                    logger.warning("Corrupt JSONL line in %s, skipping", path)
+                    continue
+                o = rec.get("outcome")
+                if o is None:
+                    logger.warning("JSONL line missing 'outcome' key in %s, skipping", path)
+                    continue
+                try:
+                    records.append(StepOutcome(
+                        step_id=o["step_id"],
+                        request_id=o["request_id"],
+                        chain_id=o["chain_id"],
+                        kind=o["kind"],
+                        status=o["status"],
+                        cost_usd=o["cost_usd"],
+                        tokens_in=o["tokens_in"],
+                        tokens_out=o["tokens_out"],
+                        elapsed_ms=o["elapsed_ms"],
+                        model=o.get("model"),
+                        events=(),
+                        timestamp_ms=o["timestamp_ms"],
+                    ))
+                except (KeyError, TypeError, ValueError):
+                    logger.warning("Corrupt outcome record in %s, skipping", path)
+                    continue
         return records
 
     @staticmethod

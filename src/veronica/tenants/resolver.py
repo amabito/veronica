@@ -8,8 +8,8 @@ from veronica.types import PolicyConfig
 # Fields that can be overridden via policy_overrides
 _POLICY_FIELDS = {f.name for f in dataclasses.fields(PolicyConfig)}
 
-# Allowed values for on_exceed
-_ON_EXCEED_VALUES = {"halt", "degrade"}
+# Allowed values for on_exceed (must match PolicyDistributor._ALLOWED_ON_EXCEED)
+_ON_EXCEED_VALUES = {"halt", "degrade", "queue"}
 
 
 def _validate_override_value(key: str, value: object) -> None:
@@ -59,6 +59,10 @@ def _validate_override_value(key: str, value: object) -> None:
         if value is not None and not isinstance(value, str):
             raise ValueError(
                 f"policy_overrides[{key!r}] must be a str or None, got {type(value).__name__!r}"
+            )
+        if isinstance(value, str) and len(value) > 1024:
+            raise ValueError(
+                f"policy_overrides[{key!r}] must be <= 1024 chars, got {len(value)}"
             )
 
     elif key in ("deadline_ts", "expires_at", "issued_at"):

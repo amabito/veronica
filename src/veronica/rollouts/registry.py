@@ -2,6 +2,7 @@
 """Thread-safe in-memory registry for rollout lifecycle management."""
 from __future__ import annotations
 
+import copy
 import json
 import threading
 from datetime import datetime, timezone
@@ -46,9 +47,10 @@ class RolloutRegistry:
         return rollout
 
     def get(self, rollout_id: str) -> Rollout | None:
-        """Return the rollout with the given id, or None if not found."""
+        """Return a copy of the rollout with the given id, or None if not found."""
         with self._lock:
-            return self._rollouts.get(rollout_id)
+            rollout = self._rollouts.get(rollout_id)
+            return copy.deepcopy(rollout) if rollout is not None else None
 
     def list_all(
         self,
@@ -68,9 +70,9 @@ class RolloutRegistry:
         """
         with self._lock:
             if state_filter is not None:
-                all_items = [r for r in self._rollouts.values() if r.state == state_filter]
+                all_items = [copy.deepcopy(r) for r in self._rollouts.values() if r.state == state_filter]
             else:
-                all_items = list(self._rollouts.values())
+                all_items = [copy.deepcopy(r) for r in self._rollouts.values()]
 
         total = len(all_items)
         start = (page - 1) * per_page
@@ -119,21 +121,25 @@ class RolloutRegistry:
             rollout.history.append(transition)
             rollout.state = target_state
             rollout.updated_at = now
-            return rollout
+            return copy.deepcopy(rollout)
 
     def set_simulation_result(
         self, rollout_id: str, result: dict
     ) -> Rollout:
-        """Store simulation result on an existing rollout (must exist).
+        """Store simulation result on an existing rollout in DRAFT state.
 
+        Raises KeyError if the rollout does not exist.
+        Raises InvalidTransitionError if the rollout is not in DRAFT state.
         Raises ValueError if the serialized result exceeds _MAX_SIM_RESULT_SIZE bytes.
-        The size check is performed inside the lock to avoid a TOCTOU race where
-        the caller could swap ``result`` between the check and the store.
         """
         with self._lock:
             rollout = self._rollouts.get(rollout_id)
             if rollout is None:
                 raise KeyError(rollout_id)
+            if rollout.state != RolloutState.DRAFT:
+                raise InvalidTransitionError(
+                    f"Cannot set simulation result: rollout is in {rollout.state.value!r}, expected 'draft'"
+                )
             serialized = json.dumps(result)
             if len(serialized) > _MAX_SIM_RESULT_SIZE:
                 raise ValueError(
@@ -141,4 +147,4 @@ class RolloutRegistry:
                     f"({len(serialized)} bytes)"
                 )
             rollout.simulation_result = result
-            return rollout
+            return copy.deepcopy(rollout)

@@ -99,7 +99,7 @@ async def replay(request: Request, body: ReplayRequestBody) -> ReplayResponse:
         result = engine.replay(replay_request)
     except ValueError as exc:
         logger.warning("[replay] invalid override_policy: %s", exc)
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        raise HTTPException(status_code=422, detail="Invalid override policy") from exc
     except Exception as exc:
         logger.exception("[replay] unexpected error: %s", exc)
         raise HTTPException(status_code=500, detail="Replay failed") from exc

@@ -2,6 +2,7 @@
 """GET /export endpoint -- full JSON dump of policies and recent events."""
 from __future__ import annotations
 
+import heapq
 import logging
 import time
 from typing import Any
@@ -83,8 +84,7 @@ async def export_data(
     try:
         ingestor = request.app.state.ingestor
         all_outcomes = ingestor.store.snapshot()
-        all_outcomes.sort(key=lambda o: o.timestamp, reverse=True)
-        outcomes = all_outcomes[:event_limit]
+        outcomes = heapq.nlargest(event_limit, all_outcomes, key=lambda o: o.timestamp)
 
         for outcome in outcomes:
             events.append({

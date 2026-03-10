@@ -12,6 +12,7 @@ from __future__ import annotations
 import hmac
 import logging
 import os
+import threading
 
 from fastapi import Request
 from fastapi.security import APIKeyHeader
@@ -24,12 +25,13 @@ _HEADER_NAME = "X-Veronica-Key"
 _ENV_VAR = "VERONICA_API_KEY"
 _ENV_AUTH_DISABLED = "VERONICA_AUTH_DISABLED"
 
-# Paths that bypass auth -- exact matches only, plus /docs/ prefix for swagger assets
+# Paths that bypass auth -- exact matches only, plus prefix matches
 _EXEMPT_EXACT = frozenset({"/health", "/docs", "/openapi.json", "/redoc"})
-_EXEMPT_PREFIX = "/docs/"
+_EXEMPT_PREFIXES = ("/docs/", "/ui/")  # swagger assets + UI pages
 
 _api_key_header = APIKeyHeader(name=_HEADER_NAME, auto_error=False)
 
+_warn_once_lock = threading.Lock()
 _warn_once_done = False
 
 
@@ -49,11 +51,9 @@ def _is_exempt(path: str) -> bool:
     Trailing slashes are stripped before matching (except for root '/').
     """
     normalized = path.rstrip("/") or "/"
-    return (
-        normalized in _EXEMPT_EXACT
-        or normalized.startswith(_EXEMPT_PREFIX)
-        or path.startswith(_EXEMPT_PREFIX)
-    )
+    if normalized in _EXEMPT_EXACT:
+        return True
+    return any(normalized.startswith(prefix) for prefix in _EXEMPT_PREFIXES)
 
 
 def _constant_time_compare(a: str, b: str) -> bool:
@@ -65,7 +65,7 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
     """Middleware that enforces X-Veronica-Key on non-exempt routes."""
 
     async def dispatch(self, request: Request, call_next: object) -> Response:
-        global _warn_once_done
+        global _warn_once_done  # noqa: PLW0603
 
         if _is_exempt(request.url.path):
             return await call_next(request)  # type: ignore[arg-type]
@@ -74,15 +74,16 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
 
         if configured_key is None:
             if _is_auth_disabled():
-                if not _warn_once_done:
-                    logger.warning(
-                        "%s is not set and %s=1 -- API auth is DISABLED. "
-                        "Set %s in production.",
-                        _ENV_VAR,
-                        _ENV_AUTH_DISABLED,
-                        _ENV_VAR,
-                    )
-                    _warn_once_done = True
+                with _warn_once_lock:
+                    if not _warn_once_done:
+                        logger.warning(
+                            "%s is not set and %s=1 -- API auth is DISABLED. "
+                            "Set %s in production.",
+                            _ENV_VAR,
+                            _ENV_AUTH_DISABLED,
+                            _ENV_VAR,
+                        )
+                        _warn_once_done = True
                 return await call_next(request)  # type: ignore[arg-type]
             return JSONResponse(
                 status_code=503,

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import threading
 
 from veronica.tenants.models import TenantNode
@@ -55,14 +56,15 @@ class TenantRegistry:
         return tenant
 
     def get(self, tenant_id: str) -> TenantNode | None:
-        """Return the tenant node or None if not found."""
+        """Return a copy of the tenant node or None if not found."""
         with self._lock:
-            return self._tenants.get(tenant_id)
+            node = self._tenants.get(tenant_id)
+            return deepcopy(node) if node is not None else None
 
     def list_all(self) -> list[TenantNode]:
-        """Return all registered tenants (unordered)."""
+        """Return copies of all registered tenants (unordered)."""
         with self._lock:
-            return list(self._tenants.values())
+            return [deepcopy(t) for t in self._tenants.values()]
 
     def update(self, tenant_id: str, updates: dict) -> TenantNode:
         """Apply field updates to an existing tenant.
@@ -77,8 +79,8 @@ class TenantRegistry:
             if "name" in updates:
                 tenant.name = updates["name"]
             if "policy_overrides" in updates:
-                tenant.policy_overrides = updates["policy_overrides"]
-        return tenant
+                tenant.policy_overrides = deepcopy(updates["policy_overrides"])
+        return deepcopy(tenant)
 
     def delete(self, tenant_id: str) -> None:
         """Delete a tenant.
@@ -92,16 +94,15 @@ class TenantRegistry:
             # Check for children without releasing lock
             children = [t for t in self._tenants.values() if t.parent_id == tenant_id]
             if children:
-                child_ids = ", ".join(c.id for c in children)
                 raise ValueError(
-                    f"Cannot delete tenant '{tenant_id}': has children: {child_ids}"
+                    f"Cannot delete tenant '{tenant_id}': has {len(children)} child tenant(s)"
                 )
             del self._tenants[tenant_id]
 
     def get_children(self, tenant_id: str) -> list[TenantNode]:
-        """Return direct children of the given tenant."""
+        """Return copies of direct children of the given tenant."""
         with self._lock:
-            return [t for t in self._tenants.values() if t.parent_id == tenant_id]
+            return [deepcopy(t) for t in self._tenants.values() if t.parent_id == tenant_id]
 
     def get_ancestors(self, tenant_id: str) -> list[TenantNode]:
         """Return ancestors of the given tenant, root first (excludes self).
@@ -124,7 +125,7 @@ class TenantRegistry:
                 parent = self._tenants.get(parent_id)
                 if parent is None:
                     break
-                ancestors.append(parent)
+                ancestors.append(deepcopy(parent))
                 parent_id = parent.parent_id
                 depth += 1
             # ancestors is leaf->root order, reverse to root->leaf

@@ -18,6 +18,7 @@ Steps are processed in timestamp order.
 from __future__ import annotations
 
 import logging
+import math
 import time
 from typing import Any
 
@@ -51,35 +52,62 @@ def _build_override_policy(override: dict[str, Any]) -> PolicyConfig:
 
     on_exceed = override.get("on_exceed", "halt")
     if on_exceed not in {"halt", "degrade", "queue"}:
-        raise ValueError(f"override_policy.on_exceed must be halt/degrade/queue, got {on_exceed!r}")
+        raise ValueError("override_policy.on_exceed must be halt/degrade/queue")
 
     try:
         ceiling_usd = float(ceiling_usd)
     except (TypeError, ValueError) as exc:
-        raise ValueError(f"override_policy.ceiling_usd must be numeric, got {ceiling_usd!r}") from exc
+        raise ValueError("override_policy.ceiling_usd must be numeric") from exc
     if ceiling_usd < 0:
-        raise ValueError(f"override_policy.ceiling_usd must be >= 0, got {ceiling_usd!r}")
+        raise ValueError("override_policy.ceiling_usd must be >= 0")
 
     ceiling_steps_raw = override.get("ceiling_steps")
-    ceiling_steps = int(ceiling_steps_raw) if ceiling_steps_raw is not None else None
-    if ceiling_steps is not None and ceiling_steps < 0:
-        raise ValueError(f"override_policy.ceiling_steps must be >= 0, got {ceiling_steps!r}")
+    if ceiling_steps_raw is not None:
+        if not isinstance(ceiling_steps_raw, int) or isinstance(ceiling_steps_raw, bool):
+            raise ValueError("override_policy.ceiling_steps must be an integer")
+        ceiling_steps = ceiling_steps_raw
+        if ceiling_steps < 0:
+            raise ValueError("override_policy.ceiling_steps must be >= 0")
+    else:
+        ceiling_steps = None
 
     ceiling_tokens_out_raw = override.get("ceiling_tokens_out")
-    ceiling_tokens_out = int(ceiling_tokens_out_raw) if ceiling_tokens_out_raw is not None else None
-    if ceiling_tokens_out is not None and ceiling_tokens_out < 0:
-        raise ValueError(f"override_policy.ceiling_tokens_out must be >= 0, got {ceiling_tokens_out!r}")
+    if ceiling_tokens_out_raw is not None:
+        if not isinstance(ceiling_tokens_out_raw, int) or isinstance(ceiling_tokens_out_raw, bool):
+            raise ValueError("override_policy.ceiling_tokens_out must be an integer")
+        ceiling_tokens_out = ceiling_tokens_out_raw
+        if ceiling_tokens_out < 0:
+            raise ValueError("override_policy.ceiling_tokens_out must be >= 0")
+    else:
+        ceiling_tokens_out = None
+
+    timeout_ms_raw = override.get("timeout_ms")
+    if timeout_ms_raw is not None:
+        if isinstance(timeout_ms_raw, bool):
+            raise ValueError("override_policy.timeout_ms must be a number")
+        timeout_ms = float(timeout_ms_raw)
+        if not math.isfinite(timeout_ms) or timeout_ms < 0:
+            raise ValueError("override_policy.timeout_ms must be a finite non-negative number")
+    else:
+        timeout_ms = None
+
+    priority_raw = override.get("priority", 50)
+    if isinstance(priority_raw, bool):
+        raise ValueError("override_policy.priority must be an integer")
+    priority = int(priority_raw)
+    if not (0 <= priority <= 100):
+        raise ValueError(f"override_policy.priority must be 0-100, got {priority!r}")
 
     return PolicyConfig(
-        chain_id=str(chain_id),
+        chain_id=str(chain_id).strip(),
         ceiling_usd=ceiling_usd,
         on_exceed=on_exceed,
         issued_at=float(override.get("issued_at", time.time())),
         ceiling_steps=ceiling_steps,
         ceiling_tokens_out=ceiling_tokens_out,
         fallback_model=override.get("fallback_model"),
-        timeout_ms=override.get("timeout_ms"),
-        priority=int(override.get("priority", 50)),
+        timeout_ms=timeout_ms,
+        priority=priority,
     )
 
 
@@ -103,6 +131,8 @@ def _replay_decision(
     if policy.ceiling_steps is not None and projected_steps > policy.ceiling_steps:
         return policy.on_exceed
 
+    # ceiling_tokens_out is a per-step limit (not cumulative) by design:
+    # individual step outputs exceeding the ceiling trigger enforcement.
     if policy.ceiling_tokens_out is not None and event.tokens > policy.ceiling_tokens_out:
         return policy.on_exceed
 

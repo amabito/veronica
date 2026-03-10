@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import math
+import re
 import threading
 import time
 import uuid
@@ -56,25 +58,35 @@ def _map_decision(decision: Decision) -> str:
         return _DEFAULT_DECISION
 
 
+_HEX_RE = re.compile(r"^[0-9a-f]{64}$")
+_AUDIT_ID_RE = re.compile(r"^[a-zA-Z0-9_:@.\-]{1,128}$")
+
+
 def _derive_policy_hash(event: SafetyEvent) -> str:
     """Derive a stable policy_hash from a SafetyEvent.
 
-    If the event metadata contains a pre-computed policy_hash, use it.
-    Otherwise compute a deterministic SHA-256 from the hook name and
-    event_type, which is stable across identical events.
+    If the event metadata contains a pre-computed policy_hash that looks
+    like a valid SHA-256 hex string, use it. Otherwise compute a
+    deterministic SHA-256 from the hook name and event_type.
     """
     meta = event.metadata or {}
-    if "policy_hash" in meta:
-        return str(meta["policy_hash"])
+    candidate = meta.get("policy_hash")
+    if isinstance(candidate, str) and _HEX_RE.match(candidate):
+        return candidate
     raw = f"{event.hook}:{event.event_type}"
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
 def _derive_audit_id(event: SafetyEvent) -> str:
-    """Return the audit_id from event metadata, or generate a new UUID4."""
+    """Return the audit_id from event metadata, or generate a new UUID4.
+
+    Only accepts safe alphanumeric strings (max 128 chars) from metadata
+    to prevent injection via arbitrary content.
+    """
     meta = event.metadata or {}
-    if "audit_id" in meta:
-        return str(meta["audit_id"])
+    candidate = meta.get("audit_id")
+    if isinstance(candidate, str) and _AUDIT_ID_RE.match(candidate):
+        return candidate
     return uuid.uuid4().hex
 
 
@@ -84,14 +96,16 @@ def _convert_event(
 ) -> CPStepOutcome:
     """Convert one kernel SafetyEvent to a CP StepOutcome."""
     meta = event.metadata or {}
-    step_id = meta.get("step_id", event.request_id or uuid.uuid4().hex)
-    chain_id = meta.get("chain_id", "unknown")
-    op_name = operation_name or meta.get("operation_name", event.hook)
-    cost_usd = float(meta.get("cost_usd", 0.0))
-    tokens = int(meta.get("tokens", meta.get("tokens_in", 0)) or 0) + int(
-        meta.get("tokens_out", 0) or 0
-    )
-    duration_ms = float(meta.get("duration_ms", meta.get("elapsed_ms", 0.0)) or 0.0)
+    step_id = str(meta.get("step_id", event.request_id or uuid.uuid4().hex))[:256]
+    chain_id = str(meta.get("chain_id", "unknown"))[:256]
+    op_name = str(operation_name or meta.get("operation_name", event.hook))[:256]
+    raw_cost = float(meta.get("cost_usd", 0.0))
+    cost_usd = max(0.0, raw_cost) if math.isfinite(raw_cost) else 0.0
+    tokens_in = max(0, int(meta.get("tokens", meta.get("tokens_in", 0)) or 0))
+    tokens_out = max(0, int(meta.get("tokens_out", 0) or 0))
+    tokens = tokens_in + tokens_out
+    raw_dur = float(meta.get("duration_ms", meta.get("elapsed_ms", 0.0)) or 0.0)
+    duration_ms = max(0.0, raw_dur) if math.isfinite(raw_dur) else 0.0
     try:
         ts = event.ts.timestamp() if event.ts is not None else time.time()
     except AttributeError:
@@ -111,25 +125,39 @@ def _convert_event(
     )
 
 
+_MAX_CP_STORE_RECORDS = 500_000
+
+
 class CPStepOutcomeStore:
     """Minimal in-memory store for CP StepOutcomes.
 
     Used as the default store for EventIngestor when no external store
     is provided. Suitable for testing and single-process use.
     Thread-safe append and snapshot.
+
+    Capacity is capped at _MAX_CP_STORE_RECORDS; oldest records are
+    evicted when the cap is reached.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, max_records: int = _MAX_CP_STORE_RECORDS) -> None:
         self._records: list[CPStepOutcome] = []
         self._lock = threading.Lock()
+        self._max_records = max(1, max_records)
+
+    def _evict_if_needed(self) -> None:
+        """Drop oldest records if capacity exceeded. Caller must hold lock."""
+        if len(self._records) > self._max_records:
+            self._records = self._records[-self._max_records:]
 
     def put(self, outcome: CPStepOutcome) -> None:
         with self._lock:
             self._records.append(outcome)
+            self._evict_if_needed()
 
     def put_many(self, outcomes: Sequence[CPStepOutcome]) -> None:
         with self._lock:
             self._records.extend(outcomes)
+            self._evict_if_needed()
 
     def snapshot(self) -> list[CPStepOutcome]:
         with self._lock:

@@ -155,10 +155,13 @@ async def simulate_rollout(rollout_id: SafeRolloutId, request: Request) -> Rollo
         }
     except Exception as exc:
         logger.warning("[rollout simulate] distributor error: %s", exc)
-        raise HTTPException(status_code=422, detail=f"Simulation failed: {exc}") from exc
+        raise HTTPException(status_code=422, detail="Simulation failed") from exc
 
     rollout_registry = request.app.state.rollout_registry
-    rollout_registry.set_simulation_result(rollout_id, sim_result)
+    try:
+        rollout_registry.set_simulation_result(rollout_id, sim_result)
+    except InvalidTransitionError:
+        raise HTTPException(status_code=409, detail="Rollout is not in a simulatable state")
 
     rollout = _do_transition(request, rollout_id, RolloutState.SIMULATED, actor="system")
     return _rollout_to_response(rollout)
@@ -205,7 +208,7 @@ async def activate_rollout(
         logger.warning("[rollout activate] policy registration error: %s", exc)
         raise HTTPException(
             status_code=409,
-            detail=f"Policy registration failed; rollout state unchanged: {exc}",
+            detail="Policy registration failed; rollout state unchanged",
         ) from exc
 
     # Registration succeeded -- now transition state.

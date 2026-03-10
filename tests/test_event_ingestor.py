@@ -79,8 +79,9 @@ class TestMapDecision:
 
 class TestDerivePolicyHash:
     def test_uses_metadata_policy_hash_when_present(self) -> None:
-        event = _make_event(metadata={"policy_hash": "abc123", "step_id": "s", "chain_id": "c"})
-        assert _derive_policy_hash(event) == "abc123"
+        valid_hash = "a" * 64  # valid SHA-256 hex string
+        event = _make_event(metadata={"policy_hash": valid_hash, "step_id": "s", "chain_id": "c"})
+        assert _derive_policy_hash(event) == valid_hash
 
     def test_derives_sha256_when_not_present(self) -> None:
         event = _make_event(metadata={"step_id": "s", "chain_id": "c"})

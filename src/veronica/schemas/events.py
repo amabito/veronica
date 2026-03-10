@@ -8,9 +8,14 @@ event pipeline. They are distinct from veronica-core's SafetyEvent
 """
 from __future__ import annotations
 
+import math
 import time
 from dataclasses import dataclass, field
 from typing import Any, Literal, Mapping
+
+
+_VALID_DECISIONS = frozenset({"allow", "halt", "degrade", "retry", "quarantine", "queue", "unknown"})
+_VALID_VERDICTS = frozenset({"ALLOW", "HALT", "DEGRADE"})
 
 
 @dataclass(frozen=True)
@@ -62,19 +67,34 @@ class StepOutcome:
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> "StepOutcome":
-        """Deserialize from plain dict."""
+        """Deserialize from plain dict.
+
+        Raises ValueError if decision is not in the valid set.
+        """
         _ts = data.get("timestamp")
+        decision = str(data["decision"])
+        if decision not in _VALID_DECISIONS:
+            raise ValueError(f"Invalid decision: {decision!r}")
+        cost_usd = float(data["cost_usd"])
+        duration_ms = float(data["duration_ms"])
+        timestamp = float(_ts) if _ts is not None else time.time()
+        if not math.isfinite(cost_usd):
+            raise ValueError(f"Non-finite cost_usd: {cost_usd!r}")
+        if not math.isfinite(duration_ms):
+            raise ValueError(f"Non-finite duration_ms: {duration_ms!r}")
+        if not math.isfinite(timestamp):
+            raise ValueError(f"Non-finite timestamp: {timestamp!r}")
         return cls(
             step_id=str(data["step_id"]),
             chain_id=str(data["chain_id"]),
             operation_name=str(data["operation_name"]),
-            decision=data["decision"],
-            cost_usd=float(data["cost_usd"]),
+            decision=decision,
+            cost_usd=cost_usd,
             tokens=int(data["tokens"]),
-            duration_ms=float(data["duration_ms"]),
+            duration_ms=duration_ms,
             policy_hash=str(data["policy_hash"]),
             audit_id=str(data["audit_id"]),
-            timestamp=float(_ts) if _ts is not None else time.time(),
+            timestamp=timestamp,
         )
 
 
@@ -122,15 +142,24 @@ class PolicyDecision:
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> "PolicyDecision":
-        """Deserialize from plain dict."""
+        """Deserialize from plain dict.
+
+        Raises ValueError if verdict is not in the valid set.
+        """
         _ts = data.get("timestamp")
+        verdict = str(data["verdict"])
+        if verdict not in _VALID_VERDICTS:
+            raise ValueError(f"Invalid verdict: {verdict!r}")
+        timestamp = float(_ts) if _ts is not None else time.time()
+        if not math.isfinite(timestamp):
+            raise ValueError(f"Non-finite timestamp: {timestamp!r}")
         return cls(
             decision_id=str(data["decision_id"]),
             policy_id=str(data["policy_id"]),
             policy_hash=str(data["policy_hash"]),
             rule_matched=str(data["rule_matched"]),
-            verdict=data["verdict"],
+            verdict=verdict,
             reason=str(data["reason"]),
             context=dict(data.get("context", {})),
-            timestamp=float(_ts) if _ts is not None else time.time(),
+            timestamp=timestamp,
         )

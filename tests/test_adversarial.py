@@ -298,11 +298,9 @@ class TestAdversarialDoS:
         assert resp.status_code == 422, resp.text
 
     def test_get_events_huge_offset(self, client: TestClient) -> None:
-        """Huge offset value must not crash the server (empty page is fine)."""
+        """Huge offset value is rejected by validation (max 10000)."""
         resp = client.get("/events?offset=99999999")
-        assert resp.status_code == 200, resp.text
-        data = resp.json()
-        assert data["items"] == []
+        assert resp.status_code == 422, resp.text
 
     def test_simulate_concurrent_requests(self, client: TestClient) -> None:
         """10 concurrent POST /simulate must all succeed or return valid status codes.

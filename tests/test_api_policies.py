@@ -172,17 +172,16 @@ class TestGetPolicy:
 
 
 class TestAdversarialPolicies:
-    def test_special_chars_in_chain_id_returns_404(self, client):
-        """Chain ID with special chars that are not registered must 404."""
-        # Use a chain_id with special chars that is simply not registered
+    def test_special_chars_in_chain_id_returns_422(self, client):
+        """Chain ID with special chars must be rejected by SafeChainId validation."""
         resp = client.get("/policies/chain!@#$%25not-registered")
-        assert resp.status_code == 404
+        assert resp.status_code == 422
 
-    def test_very_long_chain_id_returns_404(self, client):
-        """Very long chain_id must not crash, just return 404."""
+    def test_very_long_chain_id_returns_422(self, client):
+        """Very long chain_id must be rejected by SafeChainId max_length."""
         long_id = "x" * 2000
         resp = client.get(f"/policies/{long_id}")
-        assert resp.status_code == 404
+        assert resp.status_code == 422
 
     def test_pagination_beyond_total_returns_empty(self, client):
         """Page beyond total should return empty items, not error."""

@@ -140,7 +140,7 @@ def test_registry_register_missing_parent_raises(registry: TenantRegistry) -> No
 def test_registry_delete_with_children_raises(registry: TenantRegistry) -> None:
     registry.register(TenantNode(id="parent", name="P"))
     registry.register(TenantNode(id="child", name="C", parent_id="parent"))
-    with pytest.raises(ValueError, match="has children"):
+    with pytest.raises(ValueError, match="child tenant"):
         registry.delete("parent")
 
 

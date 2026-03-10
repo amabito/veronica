@@ -39,7 +39,7 @@ async def export_data(
 
         {
           "exported_at": 1234567890.123,
-          "veronica_version": "0.7.1",
+          "veronica_version": "0.8.0",
           "policies": [ { ...PolicyResponse fields... } ],
           "events": [ { ...EventItem fields... } ],
           "warnings": []

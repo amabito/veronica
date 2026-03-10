@@ -27,7 +27,7 @@ class TestAppFactory:
 
     def test_app_version(self) -> None:
         app = create_app()
-        assert app.version == "0.7.1"
+        assert app.version == "0.8.0"
 
 
 class TestLifespan:

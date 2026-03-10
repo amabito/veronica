@@ -32,7 +32,7 @@ class TestHealthEndpoint:
         resp = client.get("/health")
         data = resp.json()
         assert "version" in data
-        assert data["version"] == "0.7.1"
+        assert data["version"] == "0.8.0"
 
     def test_kernel_version_present(self, client: TestClient) -> None:
         resp = client.get("/health")

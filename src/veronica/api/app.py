@@ -59,7 +59,7 @@ def create_app() -> FastAPI:
 
     app = FastAPI(
         title="VERONICA Control Plane API",
-        version="0.7.1",
+        version="0.8.0",
         description=(
             "Execution OS API for LLM systems.\n\n"
             "Provides policy management, event audit, and side-effect-free simulation "

@@ -61,7 +61,7 @@ Expected response:
 ```json
 {
   "status": "ok",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "kernel_version": "...",
   "uptime_seconds": 0.12
 }

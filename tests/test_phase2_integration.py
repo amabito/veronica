@@ -2,10 +2,8 @@
 """Integration tests -- full Phase 2 pipeline through VeronicaOS."""
 from __future__ import annotations
 
-import time
 from datetime import datetime, timezone
 
-import pytest
 
 from veronica_core.containment.execution_context import ContextSnapshot, NodeRecord
 

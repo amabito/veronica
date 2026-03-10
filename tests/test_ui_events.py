@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-STATIC_DIR = Path(__file__).parent.parent / "static"
+STATIC_DIR = Path(__file__).parent.parent / "src" / "veronica" / "ui" / "static"
 EVENTS_HTML = STATIC_DIR / "events.html"
 EVENTS_JS = STATIC_DIR / "js" / "events.js"
 INCIDENT_HTML = STATIC_DIR / "incident.html"

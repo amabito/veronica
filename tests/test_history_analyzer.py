@@ -2,10 +2,9 @@
 """Tests for veronica.history_analyzer -- 6-pattern adaptive analyzer."""
 from __future__ import annotations
 
-import pytest
 
 from veronica.history_analyzer import HistoryAnalyzer
-from veronica.types import HistoryView, Signal, StepIntent, StepOutcome
+from veronica.types import HistoryView, StepIntent, StepOutcome
 
 
 def _intent(model: str = "gpt-4") -> StepIntent:

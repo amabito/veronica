@@ -2,10 +2,9 @@
 """Tests for veronica.cost_model -- TableCostModel."""
 from __future__ import annotations
 
-import time
 
 from veronica.cost_model import TableCostModel
-from veronica.types import AnalysisResult, HistoryView, StepIntent
+from veronica.types import HistoryView, StepIntent
 
 
 def _intent(model: str = "gpt-4") -> StepIntent:

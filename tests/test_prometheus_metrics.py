@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import threading
 
-import pytest
 from prometheus_client import CollectorRegistry
 
 from veronica.metrics import PrometheusSubscriber

@@ -11,7 +11,8 @@ from veronica.api.app import create_app
 @pytest.fixture()
 def client() -> TestClient:
     app = create_app()
-    return TestClient(app)
+    with TestClient(app) as c:
+        yield c
 
 
 class TestHealthEndpoint:
@@ -62,6 +63,10 @@ class TestHealthEndpoint:
         assert r2 >= r1
 
     def test_all_required_fields_present(self, client: TestClient) -> None:
-        required = {"status", "version", "kernel_version", "uptime_seconds"}
+        required = {"status", "version", "kernel_version", "uptime_seconds", "subsystems"}
         data = client.get("/health").json()
         assert required.issubset(data.keys())
+
+    def test_subsystems_store_ok(self, client: TestClient) -> None:
+        resp = client.get("/health")
+        assert resp.json()["subsystems"]["store"] == "ok"

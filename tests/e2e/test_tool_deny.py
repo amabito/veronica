@@ -14,14 +14,12 @@ from __future__ import annotations
 import time
 from datetime import datetime, timezone
 
-import pytest
 
 from veronica_core.containment.execution_context import (
     ChainMetadata,
     ContextSnapshot,
     ExecutionContext,
     NodeRecord,
-    WrapOptions,
 )
 from veronica_core.shield.event import SafetyEvent
 from veronica_core.shield.types import Decision
@@ -30,7 +28,6 @@ from veronica.buffered_emitter import BufferedEmitter
 from veronica.distribution.policy_distributor import PolicyDistributor
 from veronica.ingest.event_ingestor import CPStepOutcomeStore, EventIngestor
 from veronica.os import VeronicaOS
-from veronica.schemas.events import StepOutcome as CPStepOutcome
 from veronica.types import OrgPolicy, PolicyConfig, StepIntent
 
 
@@ -75,7 +72,7 @@ class TestToolDenyViaOrgPolicy:
         emitter = BufferedEmitter()
         vos = VeronicaOS(emitter=emitter, org_policy=org)
 
-        handle = vos.before_step(_intent(tool_name="bash_tool"))
+        vos.before_step(_intent(tool_name="bash_tool"))
 
         events = emitter.snapshot()
         assert len(events) == 1
@@ -211,7 +208,6 @@ class TestFullToolDenyPipeline:
         assert handle.policy.ceiling_usd == 0.0
 
         # Step 2: Kernel execution with denied policy (zero ceiling)
-        from veronica_core.containment.execution_context import ExecutionConfig
 
         exec_config = handle.policy.to_exec_config()
         assert exec_config.max_cost_usd == 0.0

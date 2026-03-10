@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from veronica.api.app import create_app
@@ -34,7 +33,7 @@ class TestAppFactory:
 class TestLifespan:
     def test_state_initialized_on_startup(self) -> None:
         app = create_app()
-        with TestClient(app) as c:
+        with TestClient(app):
             assert hasattr(app.state, "store")
             assert hasattr(app.state, "distributor")
             assert hasattr(app.state, "ingestor")

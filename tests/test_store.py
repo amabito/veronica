@@ -10,7 +10,6 @@ from veronica.types import (
     CostEstimate,
     DecisionMeta,
     DesiredPolicy,
-    HistoryView,
     PolicyConfig,
     StepOutcome,
 )

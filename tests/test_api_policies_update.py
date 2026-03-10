@@ -155,7 +155,7 @@ class TestUpdatePolicyErrors:
 
     def test_409_detail_mentions_stale(self, client):
         registry = client.app.state.registry
-        bundle = registry.register(_make_policy("chain-stale-detail"))
+        registry.register(_make_policy("chain-stale-detail"))
 
         resp = client.put(
             "/policies/chain-stale-detail",

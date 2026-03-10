@@ -41,6 +41,7 @@ async def _lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
     from veronica.api.routes import events as events_router
+    from veronica.api.routes import export as export_router
     from veronica.api.routes import health as health_router
     from veronica.api.routes import policies as policies_router
     from veronica.api.routes import simulate as simulate_router
@@ -60,6 +61,7 @@ def create_app() -> FastAPI:
             {"name": "policies", "description": "Policy CRUD and versioned updates"},
             {"name": "simulate", "description": "Side-effect-free policy simulation"},
             {"name": "events", "description": "Paginated, filterable event audit log"},
+            {"name": "export", "description": "Full JSON export for backup and migration"},
         ],
         lifespan=_lifespan,
     )
@@ -98,6 +100,7 @@ def create_app() -> FastAPI:
     app.include_router(events_router.router)
     app.include_router(policies_router.router)
     app.include_router(simulate_router.router)
+    app.include_router(export_router.router)
     app.include_router(ui_router)
     mount_static(app)
 

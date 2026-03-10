@@ -5,7 +5,6 @@ from __future__ import annotations
 import threading
 from datetime import datetime, timezone
 
-import pytest
 
 from veronica_core.containment.execution_context import ContextSnapshot, NodeRecord
 
@@ -146,9 +145,7 @@ class TestPolicyHashInPayload:
 class TestAuditHashChainIntegrity:
     def test_full_pipeline_hash_chain_unbroken(self) -> None:
         """Create policy -> distribute -> execute -> verify hash chain."""
-        from veronica.arbiter import PassthroughArbiter
         from veronica.distribution import PolicyDistributor
-        from veronica.types import DesiredPolicy
 
         dist = PolicyDistributor()
         emitter = BufferedEmitter()

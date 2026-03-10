@@ -6,7 +6,6 @@ import json
 import logging
 from datetime import datetime, timezone
 
-import pytest
 
 from veronica_core.containment.execution_context import ContextSnapshot, NodeRecord
 

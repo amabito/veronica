@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 import time
-from datetime import datetime, timezone
 from unittest.mock import patch
 
 import pytest
 
-from veronica_core.containment.execution_context import ContextSnapshot
 from veronica_core.shield.event import SafetyEvent
 
 from veronica.collector import SimpleCollector
@@ -83,7 +81,7 @@ class TestFallbackSnapshot:
 
 from unittest.mock import MagicMock
 
-from veronica_core.containment.execution_context import ExecutionContext, ExecutionConfig
+from veronica_core.containment.execution_context import ExecutionContext
 from veronica_core.shield.hooks import Decision
 
 from veronica.os import StepContext

@@ -108,12 +108,9 @@ class TestOrgPolicyClamp:
 # ---------------------------------------------------------------------------
 from unittest.mock import MagicMock
 
-from veronica.os import OrgPolicyDenied, StepContext, VeronicaOS
+from veronica.os import OrgPolicyDenied, VeronicaOS
 from veronica.types import (
-    CostEstimate,
-    DecisionMeta,
     PolicyConfig,
-    StepHandle,
 )
 
 
@@ -274,7 +271,6 @@ class TestOrgPolicyMetrics:
 # Adversarial / boundary / type-variation / breaking tests
 # ---------------------------------------------------------------------------
 import threading
-from dataclasses import replace as dc_replace
 
 
 class TestOrgPolicyBoundaryValues:

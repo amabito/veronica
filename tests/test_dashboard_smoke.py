@@ -22,8 +22,16 @@ def _compose_available() -> bool:
     if not _docker_available():
         return False
     try:
+        # Check compose CLI exists
         result = subprocess.run(
             ["docker", "compose", "version"],
+            capture_output=True, timeout=10,
+        )
+        if result.returncode != 0:
+            return False
+        # Check Docker daemon is running
+        result = subprocess.run(
+            ["docker", "info"],
             capture_output=True, timeout=10,
         )
         return result.returncode == 0

@@ -2,7 +2,6 @@
 """Tests for RedisArbiter -- multi-process budget allocation."""
 from __future__ import annotations
 
-import time
 
 import fakeredis
 import pytest

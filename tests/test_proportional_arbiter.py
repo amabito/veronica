@@ -2,7 +2,6 @@
 """Tests for veronica.proportional_arbiter -- priority-weighted budget allocation."""
 from __future__ import annotations
 
-import time
 
 import pytest
 

@@ -22,6 +22,15 @@ from veronica.tenants import TenantRegistry
 logger = logging.getLogger(__name__)
 
 
+def _get_version() -> str:
+    """Return veronica version via deferred import to avoid circular imports."""
+    try:
+        from veronica import __version__
+        return __version__
+    except Exception:
+        return "unknown"
+
+
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Initialize and teardown shared resources."""
@@ -59,7 +68,7 @@ def create_app() -> FastAPI:
 
     app = FastAPI(
         title="VERONICA Control Plane API",
-        version="0.8.0",
+        version=_get_version(),
         description=(
             "Execution OS API for LLM systems.\n\n"
             "Provides policy management, event audit, and side-effect-free simulation "

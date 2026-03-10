@@ -18,6 +18,15 @@ _VALID_DECISIONS = frozenset({"allow", "halt", "degrade", "retry", "quarantine",
 _VALID_VERDICTS = frozenset({"ALLOW", "HALT", "DEGRADE"})
 
 
+def _safe_context(raw: Any) -> dict[str, Any]:
+    """Convert context field to dict, raising ValueError for non-Mapping types."""
+    if raw is None:
+        return {}
+    if isinstance(raw, Mapping):
+        return dict(raw)
+    raise ValueError(f"context must be a Mapping, got {type(raw).__name__!r}")
+
+
 @dataclass(frozen=True)
 class StepOutcome:
     """CP-level post-execution record.
@@ -90,7 +99,7 @@ class StepOutcome:
             operation_name=str(data["operation_name"]),
             decision=decision,
             cost_usd=cost_usd,
-            tokens=int(data["tokens"]),
+            tokens=max(0, int(data["tokens"])),
             duration_ms=duration_ms,
             policy_hash=str(data["policy_hash"]),
             audit_id=str(data["audit_id"]),
@@ -160,6 +169,6 @@ class PolicyDecision:
             rule_matched=str(data["rule_matched"]),
             verdict=verdict,
             reason=str(data["reason"]),
-            context=dict(data.get("context", {})),
+            context=_safe_context(data.get("context")),
             timestamp=timestamp,
         )

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
@@ -57,6 +58,8 @@ class ReplayRequestBody(BaseModel):
     @field_validator("from_timestamp", "to_timestamp")
     @classmethod
     def _timestamps_positive(cls, v: float) -> float:
+        if not math.isfinite(v):
+            raise ValueError("timestamps must be finite numbers")
         if v < 0:
             raise ValueError("timestamps must be non-negative")
         return v

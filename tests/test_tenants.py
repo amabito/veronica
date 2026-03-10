@@ -199,7 +199,8 @@ def test_resolver_unknown_tenant_returns_base(
     resolver: PolicyResolver, registry: TenantRegistry, base_policy: PolicyConfig
 ) -> None:
     result = resolver.resolve("ghost", registry, base_policy)
-    assert result is base_policy
+    assert result == base_policy
+    assert result is not base_policy  # defensive copy
 
 
 def test_resolver_ignores_unknown_override_fields(

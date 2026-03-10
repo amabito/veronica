@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import heapq
+import math
 from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -103,7 +104,7 @@ async def list_events(
         if invalid:
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid decision value(s): {invalid[:10]}. Valid: {sorted(_VALID_DECISIONS)}",
+                detail=f"Invalid decision filter value(s). Valid: {sorted(_VALID_DECISIONS)}",
             )
 
     ingestor = request.app.state.ingestor
@@ -119,8 +120,12 @@ async def list_events(
     if policy_hash is not None:
         outcomes = [o for o in outcomes if o.policy_hash == policy_hash]
     if since is not None:
+        if not math.isfinite(since):
+            raise HTTPException(status_code=400, detail="since must be a finite number")
         outcomes = [o for o in outcomes if o.timestamp >= since]
     if until is not None:
+        if not math.isfinite(until):
+            raise HTTPException(status_code=400, detail="until must be a finite number")
         outcomes = [o for o in outcomes if o.timestamp <= until]
 
     # Bounded selection: O(N) heap selection instead of O(N log N) full sort.

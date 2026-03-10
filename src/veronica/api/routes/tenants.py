@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import time
 from typing import Annotated, Any
 
@@ -9,6 +10,8 @@ from pydantic import BaseModel, Field
 from veronica.tenants.models import TenantNode
 from veronica.tenants.resolver import PolicyResolver
 from veronica.types import PolicyConfig
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/tenants", tags=["tenants"])
 
@@ -33,21 +36,29 @@ _KNOWN_OVERRIDE_KEYS = {
 }
 
 
+_MAX_OVERRIDE_KEY_LEN = 128
+
+
 def _validate_overrides(overrides: dict) -> None:
     """Validate policy_overrides keys against the known field set.
 
-    Raises HTTPException(422) for unknown keys or if the key count exceeds 20.
+    Raises HTTPException(422) for unknown keys, oversized keys, or if the key count exceeds 20.
     """
-    unknown = set(overrides.keys()) - _KNOWN_OVERRIDE_KEYS
-    if unknown:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Unknown policy_overrides keys: {sorted(unknown)}",
-        )
     if len(overrides) > 20:
         raise HTTPException(
             status_code=422,
             detail="policy_overrides limited to 20 keys",
+        )
+    if any(len(k) > _MAX_OVERRIDE_KEY_LEN for k in overrides):
+        raise HTTPException(
+            status_code=422,
+            detail=f"policy_overrides key too long (max {_MAX_OVERRIDE_KEY_LEN} chars)",
+        )
+    unknown = set(overrides.keys()) - _KNOWN_OVERRIDE_KEYS
+    if unknown:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unknown policy_overrides keys: {len(unknown)} unrecognized key(s)",
         )
 
 
@@ -162,7 +173,8 @@ async def create_tenant(body: TenantCreateRequest, request: Request) -> TenantRe
     try:
         registry.register(node)
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc))
+        logger.warning("[create_tenant] registration failed: %s", exc)
+        raise HTTPException(status_code=422, detail="Tenant registration failed")
     return _to_response(node)
 
 
@@ -193,7 +205,8 @@ async def delete_tenant(tenant_id: SafeTenantId, request: Request) -> Response:
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Tenant '{tenant_id}' not found")
     except ValueError as exc:
-        raise HTTPException(status_code=409, detail=str(exc))
+        logger.warning("[delete_tenant] deletion conflict: %s", exc)
+        raise HTTPException(status_code=409, detail="Tenant deletion conflict")
     return Response(status_code=204)
 
 
@@ -213,5 +226,9 @@ async def get_effective_policy(tenant_id: SafeTenantId, request: Request) -> Eff
         on_exceed="halt",
         issued_at=time.time(),
     )
-    effective = _resolver.resolve(tenant_id, registry, base_policy)
+    try:
+        effective = _resolver.resolve(tenant_id, registry, base_policy)
+    except (ValueError, TypeError) as exc:
+        logger.warning("[get_effective_policy] resolver error for tenant %s: %s", tenant_id, exc)
+        raise HTTPException(status_code=422, detail="Policy resolution failed")
     return _policy_to_response(tenant_id, effective)

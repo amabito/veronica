@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import time
 from typing import Literal
 
@@ -40,7 +41,7 @@ def _build_policy(policy_dict: dict) -> PolicyConfig:
         )
 
     ceiling_usd = policy_dict.get("ceiling_usd")
-    if not isinstance(ceiling_usd, (int, float)) or ceiling_usd < 0:
+    if isinstance(ceiling_usd, bool) or not isinstance(ceiling_usd, (int, float)) or not math.isfinite(ceiling_usd) or ceiling_usd < 0:
         raise HTTPException(
             status_code=422,
             detail="ceiling_usd must be a non-negative number",
@@ -50,6 +51,8 @@ def _build_policy(policy_dict: dict) -> PolicyConfig:
     # Non-numeric values cause TypeError in _evaluate_step (time.time() > deadline_ts).
     deadline_ts = policy_dict.get("deadline_ts")
     if deadline_ts is not None:
+        if isinstance(deadline_ts, bool):
+            raise HTTPException(status_code=422, detail="Invalid policy configuration")
         try:
             deadline_ts = float(deadline_ts)
         except (TypeError, ValueError) as exc:
@@ -57,9 +60,13 @@ def _build_policy(policy_dict: dict) -> PolicyConfig:
                 status_code=422,
                 detail="Invalid policy configuration",
             ) from exc
+        if not math.isfinite(deadline_ts) or deadline_ts < 0:
+            raise HTTPException(status_code=422, detail="deadline_ts must be a finite non-negative number")
 
     expires_at = policy_dict.get("expires_at")
     if expires_at is not None:
+        if isinstance(expires_at, bool):
+            raise HTTPException(status_code=422, detail="Invalid policy configuration")
         try:
             expires_at = float(expires_at)
         except (TypeError, ValueError) as exc:
@@ -67,20 +74,49 @@ def _build_policy(policy_dict: dict) -> PolicyConfig:
                 status_code=422,
                 detail="Invalid policy configuration",
             ) from exc
+        if not math.isfinite(expires_at) or expires_at < 0:
+            raise HTTPException(status_code=422, detail="expires_at must be a finite non-negative number")
+
+    chain_id_str = str(policy_dict["chain_id"])[:256]
+    if not chain_id_str:
+        raise HTTPException(status_code=422, detail="chain_id must be non-empty")
+
+    issued_at_raw = policy_dict.get("issued_at")
+    if issued_at_raw is None:
+        issued_at_val = time.time()
+    else:
+        if isinstance(issued_at_raw, bool):
+            raise HTTPException(status_code=422, detail="Invalid policy configuration")
+        try:
+            issued_at_val = float(issued_at_raw)
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail="Invalid policy configuration") from exc
+        if not math.isfinite(issued_at_val) or issued_at_val < 0:
+            raise HTTPException(status_code=422, detail="issued_at must be a finite non-negative number")
+
+    priority_raw = policy_dict.get("priority", 50)
+    if isinstance(priority_raw, bool):
+        raise HTTPException(status_code=422, detail="Invalid policy configuration")
+
+    # Bool-as-int guard for optional integer/numeric fields
+    for _key in ("ceiling_tokens_out", "ceiling_steps", "timeout_ms", "rate_ceiling_calls", "rate_window_seconds"):
+        _val = policy_dict.get(_key)
+        if _val is not None and isinstance(_val, bool):
+            raise HTTPException(status_code=422, detail="Invalid policy configuration")
 
     try:
         return PolicyConfig(
-            chain_id=str(policy_dict["chain_id"]),
+            chain_id=chain_id_str,
             ceiling_usd=float(policy_dict["ceiling_usd"]),
             on_exceed=on_exceed,
-            issued_at=float(policy_dict.get("issued_at", time.time())),
+            issued_at=issued_at_val,
             ceiling_tokens_out=policy_dict.get("ceiling_tokens_out"),
             ceiling_steps=policy_dict.get("ceiling_steps"),
             fallback_model=policy_dict.get("fallback_model"),
             timeout_ms=policy_dict.get("timeout_ms"),
             rate_window_seconds=policy_dict.get("rate_window_seconds"),
             rate_ceiling_calls=policy_dict.get("rate_ceiling_calls"),
-            priority=int(policy_dict.get("priority", 50)),
+            priority=int(priority_raw),
             deadline_ts=deadline_ts,
             expires_at=expires_at,
             planner_version=policy_dict.get("planner_version"),
@@ -129,12 +165,12 @@ def _evaluate_step(
             f"step ceiling exceeded: {projected_steps} > {policy.ceiling_steps}"
         )
 
-    # Deadline check
-    if policy.deadline_ts is not None and time.time() > policy.deadline_ts:
+    # Deadline and expiry checks (single timestamp evaluation to avoid TOCTOU)
+    now = time.time()
+    if policy.deadline_ts is not None and now > policy.deadline_ts:
         return "halt", f"deadline exceeded: {policy.deadline_ts}"
 
-    # Expiry check
-    if policy.expires_at is not None and time.time() > policy.expires_at:
+    if policy.expires_at is not None and now > policy.expires_at:
         return "halt", f"policy expired at {policy.expires_at}"
 
     return "allow", "within budget"

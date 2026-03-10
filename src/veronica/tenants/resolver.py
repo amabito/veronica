@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import dataclasses
 
+import math
+
 from veronica.tenants.registry import TenantRegistry
 from veronica.types import PolicyConfig
 
@@ -18,10 +20,10 @@ def _validate_override_value(key: str, value: object) -> None:
     Raises ValueError with a descriptive message on invalid type or value.
     """
     if key == "ceiling_usd":
-        if not isinstance(value, (int, float)):
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
             raise ValueError(f"policy_overrides[{key!r}] must be a number, got {type(value).__name__!r}")
-        if value < 0:
-            raise ValueError(f"policy_overrides[{key!r}] must be >= 0, got {value!r}")
+        if not math.isfinite(value) or value < 0:
+            raise ValueError(f"policy_overrides[{key!r}] must be a finite non-negative number, got {value!r}")
 
     elif key == "priority":
         if not isinstance(value, int) or isinstance(value, bool):
@@ -29,7 +31,16 @@ def _validate_override_value(key: str, value: object) -> None:
         if not (0 <= value <= 100):
             raise ValueError(f"policy_overrides[{key!r}] must be in range 0-100, got {value!r}")
 
-    elif key in ("ceiling_tokens_out", "ceiling_steps", "timeout_ms", "rate_ceiling_calls"):
+    elif key == "timeout_ms":
+        if value is not None:
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError(
+                    f"policy_overrides[{key!r}] must be a number or None, got {type(value).__name__!r}"
+                )
+            if not math.isfinite(value) or value < 0:
+                raise ValueError(f"policy_overrides[{key!r}] must be a finite non-negative number, got {value!r}")
+
+    elif key in ("ceiling_tokens_out", "ceiling_steps", "rate_ceiling_calls"):
         if value is not None:
             if not isinstance(value, int) or isinstance(value, bool):
                 raise ValueError(
@@ -44,8 +55,8 @@ def _validate_override_value(key: str, value: object) -> None:
                 raise ValueError(
                     f"policy_overrides[{key!r}] must be a number or None, got {type(value).__name__!r}"
                 )
-            if value < 0:
-                raise ValueError(f"policy_overrides[{key!r}] must be >= 0, got {value!r}")
+            if not math.isfinite(value) or value < 0:
+                raise ValueError(f"policy_overrides[{key!r}] must be a finite non-negative number, got {value!r}")
 
     elif key == "on_exceed":
         if not isinstance(value, str):
@@ -71,8 +82,11 @@ def _validate_override_value(key: str, value: object) -> None:
                 raise ValueError(
                     f"policy_overrides[{key!r}] must be a number or None, got {type(value).__name__!r}"
                 )
-            if value < 0:
-                raise ValueError(f"policy_overrides[{key!r}] must be >= 0, got {value!r}")
+            if not math.isfinite(value) or value < 0:
+                raise ValueError(f"policy_overrides[{key!r}] must be a finite non-negative number, got {value!r}")
+
+    else:
+        raise ValueError(f"policy_overrides[{key!r}] has no validation rule")
 
 
 class PolicyResolver:
@@ -96,13 +110,13 @@ class PolicyResolver:
         """
         tenant = registry.get(tenant_id)
         if tenant is None:
-            return base_policy
+            return dataclasses.replace(base_policy)
 
         # Build ordered list: root ancestors + self
         ancestors = registry.get_ancestors(tenant_id)
         chain = [*ancestors, tenant]
 
-        policy = base_policy
+        policy = dataclasses.replace(base_policy)
         for node in chain:
             overrides: dict[str, object] = {}
             for k, v in node.policy_overrides.items():

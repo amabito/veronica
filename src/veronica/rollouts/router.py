@@ -160,6 +160,8 @@ async def simulate_rollout(rollout_id: SafeRolloutId, request: Request) -> Rollo
     rollout_registry = request.app.state.rollout_registry
     try:
         rollout_registry.set_simulation_result(rollout_id, sim_result)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Rollout '{rollout_id}' not found")
     except InvalidTransitionError:
         raise HTTPException(status_code=409, detail="Rollout is not in a simulatable state")
 
@@ -219,9 +221,9 @@ async def activate_rollout(
     try:
         rollout = _do_transition(request, rollout_id, RolloutState.ACTIVE, actor=body.actor)
     except HTTPException as exc:
-        if exc.status_code == 409:
-            # Invalid state transition -- re-raise so caller knows they must
-            # follow the proper lifecycle before activating.
+        if exc.status_code in (404, 409):
+            # 404: rollout deleted between registration and transition.
+            # 409: invalid state transition -- caller must follow lifecycle.
             raise
         # Non-409 HTTP error after successful registration: policy is live,
         # state is inconsistent. Log and return pre-transition rollout.

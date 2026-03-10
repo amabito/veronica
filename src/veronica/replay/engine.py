@@ -49,6 +49,8 @@ def _build_override_policy(override: dict[str, Any]) -> PolicyConfig:
     ceiling_usd = override.get("ceiling_usd")
     if ceiling_usd is None:
         raise ValueError("override_policy.ceiling_usd is required")
+    if isinstance(ceiling_usd, bool):
+        raise ValueError("override_policy.ceiling_usd must be numeric")
 
     on_exceed = override.get("on_exceed", "halt")
     if on_exceed not in {"halt", "degrade", "queue"}:
@@ -58,8 +60,8 @@ def _build_override_policy(override: dict[str, Any]) -> PolicyConfig:
         ceiling_usd = float(ceiling_usd)
     except (TypeError, ValueError) as exc:
         raise ValueError("override_policy.ceiling_usd must be numeric") from exc
-    if ceiling_usd < 0:
-        raise ValueError("override_policy.ceiling_usd must be >= 0")
+    if not math.isfinite(ceiling_usd) or ceiling_usd < 0:
+        raise ValueError("override_policy.ceiling_usd must be a finite non-negative number")
 
     ceiling_steps_raw = override.get("ceiling_steps")
     if ceiling_steps_raw is not None:
@@ -85,7 +87,10 @@ def _build_override_policy(override: dict[str, Any]) -> PolicyConfig:
     if timeout_ms_raw is not None:
         if isinstance(timeout_ms_raw, bool):
             raise ValueError("override_policy.timeout_ms must be a number")
-        timeout_ms = float(timeout_ms_raw)
+        try:
+            timeout_ms = float(timeout_ms_raw)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("override_policy.timeout_ms must be numeric") from exc
         if not math.isfinite(timeout_ms) or timeout_ms < 0:
             raise ValueError("override_policy.timeout_ms must be a finite non-negative number")
     else:
@@ -94,15 +99,27 @@ def _build_override_policy(override: dict[str, Any]) -> PolicyConfig:
     priority_raw = override.get("priority", 50)
     if isinstance(priority_raw, bool):
         raise ValueError("override_policy.priority must be an integer")
-    priority = int(priority_raw)
+    if not isinstance(priority_raw, int):
+        raise ValueError("override_policy.priority must be an integer")
+    priority = priority_raw
     if not (0 <= priority <= 100):
         raise ValueError(f"override_policy.priority must be 0-100, got {priority!r}")
+
+    issued_at_raw = override.get("issued_at", time.time())
+    if isinstance(issued_at_raw, bool):
+        raise ValueError("override_policy.issued_at must be a number")
+    try:
+        issued_at = float(issued_at_raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("override_policy.issued_at must be numeric") from exc
+    if not math.isfinite(issued_at) or issued_at < 0:
+        raise ValueError("override_policy.issued_at must be a finite non-negative number")
 
     return PolicyConfig(
         chain_id=str(chain_id).strip(),
         ceiling_usd=ceiling_usd,
         on_exceed=on_exceed,
-        issued_at=float(override.get("issued_at", time.time())),
+        issued_at=issued_at,
         ceiling_steps=ceiling_steps,
         ceiling_tokens_out=ceiling_tokens_out,
         fallback_model=override.get("fallback_model"),
@@ -122,7 +139,8 @@ def _replay_decision(
     Returns the on_exceed value ("halt", "degrade", "queue") when a ceiling
     is breached, otherwise "allow".
     """
-    projected_cost = cumulative_cost + event.cost_usd
+    event_cost = event.cost_usd if math.isfinite(event.cost_usd) else 0.0
+    projected_cost = cumulative_cost + event_cost
     projected_steps = step_index + 1
 
     if projected_cost > policy.ceiling_usd:
@@ -133,7 +151,8 @@ def _replay_decision(
 
     # ceiling_tokens_out is a per-step limit (not cumulative) by design:
     # individual step outputs exceeding the ceiling trigger enforcement.
-    if policy.ceiling_tokens_out is not None and event.tokens > policy.ceiling_tokens_out:
+    event_tokens = event.tokens if math.isfinite(event.tokens) else 0
+    if policy.ceiling_tokens_out is not None and event_tokens > policy.ceiling_tokens_out:
         return policy.on_exceed
 
     return _ALLOW
@@ -184,9 +203,12 @@ class ReplayEngine:
                 override_policy = _build_override_policy(request.override_policy)
                 self._distributor._validate(override_policy)
             except (ValueError, PolicyValidationError) as exc:
-                raise ValueError(f"Invalid override_policy: {exc}") from exc
+                raise ValueError("Invalid override_policy: validation failed") from exc
 
-        # Cap at _MAX_REPLAY_EVENTS to prevent excessive memory usage
+        # Sort deterministically by timestamp then step_id
+        events.sort(key=lambda e: (e.timestamp, e.step_id))
+
+        # Cap at _MAX_REPLAY_EVENTS AFTER sort to keep chronologically earliest
         if len(events) > _MAX_REPLAY_EVENTS:
             logger.warning(
                 "[replay] chain '%s' has %d events, truncating to %d",
@@ -195,9 +217,6 @@ class ReplayEngine:
                 _MAX_REPLAY_EVENTS,
             )
             events = events[:_MAX_REPLAY_EVENTS]
-
-        # Sort deterministically by timestamp then step_id
-        events.sort(key=lambda e: (e.timestamp, e.step_id))
 
         if not events:
             return ReplayResult(
@@ -214,6 +233,9 @@ class ReplayEngine:
 
         for idx, event in enumerate(events):
             original = event.decision
+
+            # Clamp non-finite cost_usd to prevent NaN/Inf from bypassing ceiling checks
+            event_cost = event.cost_usd if math.isfinite(event.cost_usd) else 0.0
 
             if override_policy is not None:
                 replayed = _replay_decision(event, idx, cumulative_cost, override_policy)
@@ -232,7 +254,7 @@ class ReplayEngine:
                 changed=changed,
             ))
 
-            cumulative_cost += event.cost_usd
+            cumulative_cost += event_cost
 
         total = len(events)
         if override_policy is not None and changed_count > 0:

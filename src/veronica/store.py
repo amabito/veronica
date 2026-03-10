@@ -2,6 +2,8 @@
 """VERONICA OS store implementations."""
 from __future__ import annotations
 
+import math
+import re
 import threading
 from collections import defaultdict
 
@@ -17,6 +19,7 @@ from veronica.types import (
 
 _MAX_OUTCOMES_PER_CHAIN = 50_000
 _MAX_CHAINS = 10_000
+_SAFE_CHAIN_RE = re.compile(r"^[a-zA-Z0-9_:@.\-]{1,256}$")
 
 
 class MemoryStore:
@@ -34,6 +37,11 @@ class MemoryStore:
         self._chains: dict[str, list[StepOutcome]] = defaultdict(list)
         self._lock = threading.Lock()
 
+    @staticmethod
+    def _validate_chain_id(chain_id: str) -> None:
+        if not _SAFE_CHAIN_RE.match(chain_id):
+            raise ValueError(f"Invalid chain_id: must match {_SAFE_CHAIN_RE.pattern!r}")
+
     def commit(
         self,
         outcome: StepOutcome,
@@ -49,6 +57,7 @@ class MemoryStore:
         are accepted to satisfy StoreProtocol but intentionally dropped.
         This is by design for the in-memory/testing implementation.
         """
+        self._validate_chain_id(outcome.chain_id)
         with self._lock:
             if outcome.chain_id not in self._chains and len(self._chains) >= _MAX_CHAINS:
                 raise ValueError(
@@ -60,12 +69,15 @@ class MemoryStore:
                 self._chains[outcome.chain_id] = chain[-_MAX_OUTCOMES_PER_CHAIN:]
 
     def build_history(self, chain_id: str, limit: int = 50) -> HistoryView:
+        self._validate_chain_id(chain_id)
         limit = max(1, min(limit, _MAX_OUTCOMES_PER_CHAIN))
         with self._lock:
             outcomes = list(self._chains.get(chain_id, []))
         last_n = tuple(outcomes[-limit:])
 
-        rolling_cost = sum(o.cost_usd for o in last_n)
+        rolling_cost = sum(
+            o.cost_usd if math.isfinite(o.cost_usd) else 0.0 for o in last_n
+        )
 
         failure_streak = 0
         for o in reversed(last_n):

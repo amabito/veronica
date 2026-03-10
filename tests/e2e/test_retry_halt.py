@@ -30,7 +30,7 @@ from veronica.ingest.event_ingestor import CPStepOutcomeStore, EventIngestor
 from veronica.types import PolicyConfig
 
 
-def _make_policy(max_retries: int, chain_id: str = "e2e-retry") -> PolicyConfig:
+def _make_policy(chain_id: str = "e2e-retry") -> PolicyConfig:
     return PolicyConfig(
         chain_id=chain_id,
         ceiling_usd=10.0,  # high budget so retries, not budget, triggers HALT
@@ -106,7 +106,7 @@ class TestRetryHaltE2E:
 
     def test_distributor_maps_retries_from_policy_config(self) -> None:
         """PolicyDistributor produces ExecutionConfig with correct max_retries_total."""
-        policy = _make_policy(max_retries=5, chain_id="e2e-retry-dist")
+        policy = _make_policy(chain_id="e2e-retry-dist")
         distributor = PolicyDistributor()
         bundle = distributor.distribute(policy)
 
@@ -137,7 +137,7 @@ class TestRetryHaltE2E:
 
     def test_ingestor_captures_retry_events(self) -> None:
         """EventIngestor stores RETRY and HALT events with consistent policy_hash."""
-        policy = _make_policy(max_retries=2, chain_id="e2e-retry-ingest")
+        policy = _make_policy(chain_id="e2e-retry-ingest")
         distributor = PolicyDistributor()
         bundle = distributor.distribute(policy)
 

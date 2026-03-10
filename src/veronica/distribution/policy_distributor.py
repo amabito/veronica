@@ -97,7 +97,7 @@ class PolicyDistributor:
             raise PolicyValidationError(
                 f"timeout_ms must be >= 0, got {policy.timeout_ms!r}"
             )
-        if not isinstance(policy.priority, int):
+        if not isinstance(policy.priority, int) or isinstance(policy.priority, bool):
             raise PolicyValidationError(
                 f"priority must be an int, got {type(policy.priority).__name__!r}"
             )

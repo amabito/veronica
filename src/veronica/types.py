@@ -2,6 +2,7 @@
 """VERONICA OS data types -- all frozen dataclasses."""
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import Any, Literal, Mapping
 
@@ -173,7 +174,13 @@ class PolicyConfig:
 
         This is the sole bridge between the OS and the engine.
         None fields receive safe defaults.
+
+        Raises ValueError if ceiling_usd is non-finite or negative.
         """
+        if not math.isfinite(self.ceiling_usd) or self.ceiling_usd < 0:
+            raise ValueError(
+                f"ceiling_usd must be a non-negative finite float, got {self.ceiling_usd!r}"
+            )
         return ExecutionConfig(
             max_cost_usd=self.ceiling_usd,
             max_steps=self.ceiling_steps if self.ceiling_steps is not None else _DEFAULT_STEPS,
@@ -232,12 +239,15 @@ class OrgPolicy:
         """Cap DesiredPolicy fields to org limits. Returns new instance if changed."""
         changes: dict[str, Any] = {}
 
-        if self.max_ceiling_usd is not None and desired.ceiling_usd > self.max_ceiling_usd:
-            changes["ceiling_usd"] = self.max_ceiling_usd
-        if self.max_timeout_ms is not None and desired.timeout_ms > self.max_timeout_ms:
-            changes["timeout_ms"] = self.max_timeout_ms
-        if self.max_priority is not None and desired.priority > self.max_priority:
-            changes["priority"] = self.max_priority
+        if self.max_ceiling_usd is not None:
+            if not math.isfinite(desired.ceiling_usd) or desired.ceiling_usd > self.max_ceiling_usd:
+                changes["ceiling_usd"] = self.max_ceiling_usd
+        if self.max_timeout_ms is not None:
+            if desired.timeout_ms > self.max_timeout_ms:
+                changes["timeout_ms"] = self.max_timeout_ms
+        if self.max_priority is not None:
+            if desired.priority > self.max_priority:
+                changes["priority"] = self.max_priority
         if (
             desired.fallback_model
             and desired.fallback_model.casefold() in self._blocked_models_cf

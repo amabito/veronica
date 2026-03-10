@@ -2,6 +2,8 @@
 """Dataclass models for the incident replay engine."""
 from __future__ import annotations
 
+import copy
+import math
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -23,6 +25,14 @@ class ReplayRequest:
     from_timestamp: float
     to_timestamp: float
     override_policy: dict[str, Any] | None = None
+
+    def __post_init__(self) -> None:
+        if not math.isfinite(self.from_timestamp) or not math.isfinite(self.to_timestamp):
+            raise ValueError("from_timestamp and to_timestamp must be finite")
+        if self.from_timestamp > self.to_timestamp:
+            raise ValueError("from_timestamp must be <= to_timestamp")
+        if self.override_policy is not None:
+            object.__setattr__(self, "override_policy", copy.deepcopy(self.override_policy))
 
 
 @dataclass(frozen=True)

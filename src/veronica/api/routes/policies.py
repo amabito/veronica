@@ -113,9 +113,10 @@ async def update_policy(
         )
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Policy '{chain_id}' not found")
-    except PolicyValidationError as exc:
+    except PolicyValidationError:
         # Must be caught before ValueError (PolicyValidationError is a subclass)
-        raise HTTPException(status_code=422, detail=str(exc))
+        # Use generic message to avoid leaking internal validation details
+        raise HTTPException(status_code=422, detail="Policy validation failed")
     except (ValueError, TypeError):
         raise HTTPException(status_code=409, detail="Version conflict or invalid update fields")
 

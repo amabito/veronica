@@ -517,9 +517,9 @@ class TestAdversarialPhase5DataIntegrity:
         reg.register(a)
         reg.register(b)
 
-        # Manually insert a circular edge: make a.parent_id = b to create A->B->A cycle.
-        # The registry prevents this at register time, but we test get_ancestors detects it.
-        a.parent_id = "circ-b"  # force the cycle directly on the stored object
+        # Manually insert a circular edge on the internal registry state to create A->B->A cycle.
+        # The registry stores deepcopies, so we must mutate the internal dict directly.
+        reg._tenants["circ-a"].parent_id = "circ-b"  # force the cycle on the stored object
         with pytest.raises(RuntimeError, match="[Cc]ircular"):
             reg.get_ancestors("circ-b")
 

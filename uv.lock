@@ -955,7 +955,7 @@ wheels = [
 
 [[package]]
 name = "veronica"
-version = "0.7.1"
+version = "0.8.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
@@ -989,17 +989,17 @@ requires-dist = [
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5.0" },
     { name = "redis", extras = ["hiredis"], marker = "extra == 'redis'", specifier = ">=5.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.41.0" },
-    { name = "veronica-core", specifier = ">=1.0.0" },
+    { name = "veronica-core", specifier = ">=3.4.0,<4" },
 ]
 provides-extras = ["dev", "redis", "metrics"]
 
 [[package]]
 name = "veronica-core"
-version = "1.0.1"
+version = "3.4.2"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/20/b7/3afc270a4c73c2b2030e28e4c7ba0cf875277d1458469a9bf0559542bfdf/veronica_core-1.0.1.tar.gz", hash = "sha256:4b5289b2fb754a0ec5a3f2ad75b73f58b54950860ea0443b59c1589401f8f74f", size = 170467, upload-time = "2026-02-26T08:59:29.656Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f9/01/9b8d45f405c83db8c3c6c3e793b87330a75cc5f4afa9202eab21f8032966/veronica_core-3.4.2.tar.gz", hash = "sha256:56eeb507bd3a39cf7b30ec14dc24396ccb4201217ca84f272c2a5e97bdd5523f", size = 257223, upload-time = "2026-03-08T14:00:35.522Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/49/13/44a32c68078fc253002cb0db3137c787f950125d3626dd3e9088cf1f138a/veronica_core-1.0.1-py3-none-any.whl", hash = "sha256:560537256cf9e236074c5ee88696e96418ae000b8bc4977c8e60bf28c95b85fe", size = 205805, upload-time = "2026-02-26T08:59:27.619Z" },
+    { url = "https://files.pythonhosted.org/packages/f2/0a/162d49353c53522f659f39ce8affd9be028db48cf657b582ad3fa87e5b93/veronica_core-3.4.2-py3-none-any.whl", hash = "sha256:cc4a830417e4f104d1725b1a6039ce133be9788c82b1943941879e3fecbbc800", size = 336658, upload-time = "2026-03-08T14:00:34.076Z" },
 ]
 
 [[package]]

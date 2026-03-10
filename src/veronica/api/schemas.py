@@ -6,9 +6,10 @@ frozen dataclasses in veronica.types and veronica.schemas.events.
 """
 from __future__ import annotations
 
+import math
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 # ---------------------------------------------------------------------------
@@ -83,6 +84,17 @@ class PolicyUpdateRequest(BaseModel):
     expires_at: float | None = None
     planner_version: str | None = None
 
+    @field_validator("ceiling_usd", "deadline_ts", "expires_at", "rate_window_seconds", mode="before")
+    @classmethod
+    def _float_fields_finite(cls, v: object) -> object:
+        if v is None:
+            return v
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
+            raise ValueError("must be a number")
+        if not math.isfinite(float(v)) or float(v) < 0:
+            raise ValueError("must be a finite non-negative number")
+        return v
+
 
 # ---------------------------------------------------------------------------
 # Simulation schemas
@@ -96,9 +108,26 @@ class SimulationStep(BaseModel):
     cost_usd: float = Field(default=0.0, ge=0)
     tokens_in: int = 0
     tokens_out: int = Field(default=0, ge=0)
-    elapsed_ms: float = 0.0
+    elapsed_ms: float = Field(default=0.0, ge=0)
     model: str | None = None
+
     tool_name: str | None = None
+
+    @field_validator("cost_usd", "elapsed_ms", mode="before")
+    @classmethod
+    def _float_finite(cls, v: object) -> object:
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
+            raise ValueError("must be a number")
+        if not math.isfinite(float(v)):
+            raise ValueError("must be a finite number")
+        return v
+
+    @field_validator("tokens_in", "tokens_out", mode="before")
+    @classmethod
+    def _int_no_bool(cls, v: object) -> object:
+        if isinstance(v, bool):
+            raise ValueError("must be an integer, not bool")
+        return v
 
 
 class SimulationStepResult(BaseModel):

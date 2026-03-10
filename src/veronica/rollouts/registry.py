@@ -44,7 +44,7 @@ class RolloutRegistry:
         rollout = new_rollout(policy_config=policy_config, created_by=created_by)
         with self._lock:
             self._rollouts[rollout.id] = rollout
-        return rollout
+        return copy.deepcopy(rollout)
 
     def get(self, rollout_id: str) -> Rollout | None:
         """Return a copy of the rollout with the given id, or None if not found."""
@@ -75,6 +75,8 @@ class RolloutRegistry:
                 all_items = [copy.deepcopy(r) for r in self._rollouts.values()]
 
         total = len(all_items)
+        page = max(1, page)
+        per_page = max(1, per_page)
         start = (page - 1) * per_page
         end = start + per_page
         return all_items[start:end], total
@@ -121,6 +123,9 @@ class RolloutRegistry:
             rollout.history.append(transition)
             rollout.state = target_state
             rollout.updated_at = now
+            # Clear simulation result when rolling back to DRAFT
+            if target_state == RolloutState.DRAFT:
+                rollout.simulation_result = None
             return copy.deepcopy(rollout)
 
     def set_simulation_result(
@@ -140,11 +145,14 @@ class RolloutRegistry:
                 raise InvalidTransitionError(
                     f"Cannot set simulation result: rollout is in {rollout.state.value!r}, expected 'draft'"
                 )
-            serialized = json.dumps(result)
+            try:
+                serialized = json.dumps(result)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("simulation_result is not JSON-serializable") from exc
             if len(serialized) > _MAX_SIM_RESULT_SIZE:
                 raise ValueError(
                     f"simulation_result exceeds {_MAX_SIM_RESULT_SIZE} byte limit "
                     f"({len(serialized)} bytes)"
                 )
-            rollout.simulation_result = result
+            rollout.simulation_result = copy.deepcopy(result)
             return copy.deepcopy(rollout)

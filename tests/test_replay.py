@@ -214,7 +214,7 @@ class TestReplayEngineWithOverride:
             to_timestamp=_NOW,
             override_policy={"ceiling_usd": 1.0},  # missing chain_id
         )
-        with pytest.raises(ValueError, match="chain_id"):
+        with pytest.raises(ValueError, match="Invalid override_policy"):
             engine.replay(req)
 
     def test_override_missing_ceiling_usd_raises(self) -> None:

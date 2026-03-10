@@ -96,9 +96,9 @@ def _convert_event(
 ) -> CPStepOutcome:
     """Convert one kernel SafetyEvent to a CP StepOutcome."""
     meta = event.metadata or {}
-    step_id = str(meta.get("step_id", event.request_id or uuid.uuid4().hex))[:256]
-    chain_id = str(meta.get("chain_id", "unknown"))[:256]
-    op_name = str(operation_name or meta.get("operation_name", event.hook))[:256]
+    step_id = re.sub(r"[^a-zA-Z0-9_:@.\-]", "_", str(meta.get("step_id", event.request_id or uuid.uuid4().hex)))[:256]
+    chain_id = re.sub(r"[^a-zA-Z0-9_:@.\-]", "_", str(meta.get("chain_id", "unknown")))[:256]
+    op_name = re.sub(r"[^a-zA-Z0-9_:@.\-]", "_", str(operation_name or meta.get("operation_name", event.hook)))[:256]
     raw_cost = float(meta.get("cost_usd", 0.0))
     cost_usd = max(0.0, raw_cost) if math.isfinite(raw_cost) else 0.0
     tokens_in = max(0, int(meta.get("tokens", meta.get("tokens_in", 0)) or 0))
@@ -241,7 +241,7 @@ class EventIngestor:
         try:
             outcome = _convert_event(event, self._operation_name)
         except Exception:
-            event_type_label = getattr(event, "event_type", "<unknown>")
+            event_type_label = repr(getattr(event, "event_type", "<unknown>"))[:128]
             logger.exception("[EventIngestor] conversion failed for event_type=%s", event_type_label)
             with self._lock:
                 self._error_total += 1
@@ -250,14 +250,13 @@ class EventIngestor:
         flush_now: list[CPStepOutcome] | None = None
         with self._lock:
             self._ingested_total += 1
-            # Count outcomes with unmapped decisions as errors
+            # Log unmapped decisions as warnings (outcome is still ingested)
             if outcome.decision == "unknown":
                 logger.warning(
                     "[EventIngestor] unrecognized decision for event_type=%s; "
                     "mapped to 'unknown' (not 'allow')",
-                    getattr(event, "event_type", "<unknown>"),
+                    repr(getattr(event, "event_type", "<unknown>"))[:128],
                 )
-                self._error_total += 1
             if self._batch_size == 0:
                 # No batching: flush immediately (single item)
                 flush_now = [outcome]
@@ -292,23 +291,35 @@ class EventIngestor:
     def _write(self, outcomes: list[CPStepOutcome]) -> int:
         """Write outcomes to store with retry. Returns count of persisted records."""
         delays = _WRITE_RETRY_DELAYS
+        last_exc: Exception | None = None
         for attempt in range(len(delays) + 1):
             try:
                 self._store.put_many(outcomes)
                 return len(outcomes)
-            except Exception:
+            except Exception as exc:
+                last_exc = exc
                 if attempt < len(delays):
                     time.sleep(delays[attempt])
 
-        logger.exception(
-            "[EventIngestor] store.put_many failed after retries, %d records moved to dead-letter",
-            len(outcomes),
-        )
         with self._lock:
             self._error_total += len(outcomes)
             available = self._DEAD_LETTER_MAX - len(self._dead_letter)
-            if available > 0:
-                self._dead_letter.extend(outcomes[:available])
+            actually_stored = min(len(outcomes), max(0, available))
+            if actually_stored > 0:
+                self._dead_letter.extend(outcomes[:actually_stored])
+            dropped = len(outcomes) - actually_stored
+        logger.error(
+            "[EventIngestor] store.put_many failed after retries, "
+            "%d record(s) to dead-letter, %d dropped",
+            actually_stored,
+            dropped,
+            exc_info=last_exc,
+        )
+        if dropped > 0:
+            logger.warning(
+                "[EventIngestor] dead-letter full: %d record(s) permanently lost",
+                dropped,
+            )
         return 0
 
     @property

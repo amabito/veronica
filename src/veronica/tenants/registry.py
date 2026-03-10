@@ -52,8 +52,8 @@ class TenantRegistry:
             # Validate no circular reference: walk the parent chain before inserting
             if tenant.parent_id is not None:
                 self._walk_ancestors_unsafe(tenant.parent_id)
-            self._tenants[tenant.id] = tenant
-        return tenant
+            self._tenants[tenant.id] = deepcopy(tenant)
+        return deepcopy(tenant)
 
     def get(self, tenant_id: str) -> TenantNode | None:
         """Return a copy of the tenant node or None if not found."""
@@ -77,10 +77,14 @@ class TenantRegistry:
             if tenant is None:
                 raise KeyError(f"Tenant '{tenant_id}' not found")
             if "name" in updates:
+                if not isinstance(updates["name"], str):
+                    raise TypeError("name must be a str")
                 tenant.name = updates["name"]
             if "policy_overrides" in updates:
+                if not isinstance(updates["policy_overrides"], dict):
+                    raise TypeError("policy_overrides must be a dict")
                 tenant.policy_overrides = deepcopy(updates["policy_overrides"])
-        return deepcopy(tenant)
+            return deepcopy(tenant)
 
     def delete(self, tenant_id: str) -> None:
         """Delete a tenant.

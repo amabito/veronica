@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VERONICA -- Incident Detail</title>
+  <link rel="stylesheet" href="/ui/static/css/style.css">
+  <style>
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--text-muted);
+      text-decoration: none;
+      margin-bottom: 16px;
+      transition: color 0.15s;
+    }
+    .back-link:hover { color: var(--text); }
+
+    .chain-label {
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      color: var(--text-muted);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 2px 8px;
+      display: inline-block;
+      margin-left: 10px;
+      vertical-align: middle;
+    }
+
+    /* Summary strip */
+    .summary-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .summary-strip .stat-card {
+      flex: 1;
+      min-width: 120px;
+      padding: 14px 18px;
+    }
+    .summary-strip .stat-value { font-size: 22px; }
+
+    /* Main grid */
+    .incident-grid {
+      display: grid;
+      grid-template-columns: 1fr 280px;
+      gap: 20px;
+      align-items: start;
+    }
+    @media (max-width: 900px) {
+      .incident-grid { grid-template-columns: 1fr; }
+    }
+
+    /* Timeline */
+    .timeline-wrap { position: relative; padding-left: 28px; }
+    .timeline-wrap::before {
+      content: '';
+      position: absolute;
+      left: 8px;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: var(--border);
+    }
+    .tl-item { position: relative; margin-bottom: 10px; }
+    .tl-item:last-child { margin-bottom: 0; }
+
+    .tl-dot {
+      position: absolute;
+      left: -24px;
+      top: 14px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      border: 2px solid var(--bg);
+      background: var(--text-muted);
+    }
+    .tl-dot.allow     { background: var(--success); }
+    .tl-dot.halt      { background: var(--danger);  box-shadow: 0 0 0 3px rgba(239,68,68,0.2); }
+    .tl-dot.degrade   { background: var(--warning); box-shadow: 0 0 0 3px rgba(234,179,8,0.2); }
+    .tl-dot.retry     { background: var(--primary); }
+    .tl-dot.queue     { background: var(--info); }
+    .tl-dot.quarantine{ background: #a855f7; }
+
+    .tl-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+    }
+    .tl-card.halt    { border-color: rgba(239,68,68,0.4);  background: rgba(239,68,68,0.04); }
+    .tl-card.degrade { border-color: rgba(234,179,8,0.4);  background: rgba(234,179,8,0.04); }
+    .tl-card.focal   { outline: 2px solid var(--primary); }
+
+    .tl-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 6px;
+    }
+    .tl-ts   { font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+    .tl-op   { font-size: 13px; font-weight: 600; flex: 1; }
+    .root-cause-tag {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--danger);
+      background: rgba(239,68,68,0.12);
+      padding: 1px 7px;
+      border-radius: 4px;
+      margin-left: auto;
+    }
+    .tl-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .tl-meta b { color: var(--text); }
+
+    /* Sidebar cards */
+    .sidebar-card { margin-bottom: 16px; }
+    .sidebar-card:last-child { margin-bottom: 0; }
+    .sidebar-card .card-body { padding: 14px; }
+
+    .decision-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .decision-row:last-child { margin-bottom: 0; }
+    .decision-row .bar-bg {
+      flex: 1;
+      height: 5px;
+      background: var(--border);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .decision-row .bar-fill { height: 100%; border-radius: 3px; }
+    .decision-row .cnt { font-size: 12px; color: var(--text-muted); width: 24px; text-align: right; }
+
+    .pi-row { margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+    .pi-row:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+    .pi-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+    .pi-value { font-family: 'Courier New', monospace; font-size: 11px; word-break: break-all; margin-top: 2px; }
+
+    /* extra badge variants */
+    .badge-quarantine { background: rgba(168,85,247,0.15); color: #a855f7; }
+    .badge-unknown    { background: rgba(148,163,184,0.15); color: var(--text-muted); }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="nav">
+    <a class="nav-brand" href="/ui/">VERONICA</a>
+    <ul class="nav-links">
+      <li><a href="/ui/">Dashboard</a></li>
+      <li><a href="/ui/events">Events</a></li>
+      <li><a href="/ui/policies">Policies</a></li>
+    </ul>
+  </nav>
+
+  <!-- Main -->
+  <main class="main">
+    <a id="back-link" href="/ui/events" class="back-link">&larr; Back to Events</a>
+
+    <h1 id="page-title" class="page-title" style="margin-bottom:6px;">
+      Incident Detail
+      <span id="chain-id-display" class="chain-label">--</span>
+    </h1>
+
+    <div id="content">
+      <div class="empty-state">Loading chain events...</div>
+    </div>
+  </main>
+
+  <!-- Toast container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- API Key Modal -->
+  <div id="apikey-modal" class="modal-overlay" style="display:none;">
+    <div class="modal">
+      <div class="modal-title">Enter API Key</div>
+      <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px;">
+        Provide your X-Veronica-Key to access incident details.
+      </p>
+      <div class="form-group">
+        <label class="form-label" for="apikey-input">API Key</label>
+        <input id="apikey-input" class="form-input" type="password" placeholder="vk-..." autocomplete="off">
+      </div>
+      <div class="modal-actions">
+        <button id="apikey-save" class="btn btn-primary">Connect</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/ui/static/js/incident.js"></script>
+</body>
+</html>

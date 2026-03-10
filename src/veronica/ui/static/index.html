@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VERONICA -- Dashboard</title>
+  <link rel="stylesheet" href="/ui/static/css/style.css">
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="nav">
+    <a class="nav-brand" href="/ui/">VERONICA</a>
+    <ul class="nav-links">
+      <li><a href="/ui/" class="active">Dashboard</a></li>
+      <li><a href="/ui/policies">Policies</a></li>
+    </ul>
+    <span id="last-refresh" class="refresh-indicator" style="margin-left:auto;"></span>
+  </nav>
+
+  <!-- Main -->
+  <main class="main">
+    <h1 class="page-title">Dashboard</h1>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Active Chains</div>
+        <div id="stat-chains" class="stat-value primary">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Cost (50 events)</div>
+        <div id="stat-cost" class="stat-value">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">HALT Count</div>
+        <div id="stat-halts" class="stat-value danger">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">DEGRADE Count</div>
+        <div id="stat-degrades" class="stat-value warning">--</div>
+      </div>
+    </div>
+
+    <!-- Recent Events -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Recent Events</span>
+        <span class="refresh-indicator">Auto-refresh every 5s</span>
+      </div>
+      <div class="card-body">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Chain</th>
+              <th>Operation</th>
+              <th>Decision</th>
+              <th>Cost</th>
+              <th>Tokens</th>
+            </tr>
+          </thead>
+          <tbody id="events-tbody">
+            <tr><td colspan="6" class="empty-state">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- Toast container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- API Key Modal -->
+  <div id="apikey-modal" class="modal-overlay" style="display:none;">
+    <div class="modal">
+      <div class="modal-title">Enter API Key</div>
+      <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px;">
+        Provide your X-Veronica-Key to access the dashboard.
+      </p>
+      <div class="form-group">
+        <label class="form-label" for="apikey-input">API Key</label>
+        <input
+          id="apikey-input"
+          class="form-input"
+          type="password"
+          placeholder="vk-..."
+          autocomplete="off"
+        >
+      </div>
+      <div class="modal-actions">
+        <button id="apikey-save" class="btn btn-primary">Connect</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/ui/static/js/dashboard.js"></script>
+</body>
+</html>

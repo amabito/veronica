@@ -44,6 +44,8 @@ def create_app() -> FastAPI:
     from veronica.api.routes import health as health_router
     from veronica.api.routes import policies as policies_router
     from veronica.api.routes import simulate as simulate_router
+    from veronica.ui.router import mount_static
+    from veronica.ui.router import router as ui_router
 
     app = FastAPI(
         title="VERONICA Control Plane API",
@@ -96,5 +98,7 @@ def create_app() -> FastAPI:
     app.include_router(events_router.router)
     app.include_router(policies_router.router)
     app.include_router(simulate_router.router)
+    app.include_router(ui_router)
+    mount_static(app)
 
     return app

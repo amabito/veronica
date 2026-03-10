@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VERONICA -- Event Log</title>
+  <link rel="stylesheet" href="/ui/static/css/style.css">
+  <style>
+    .filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: flex-end;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .filter-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .filter-group .form-label { margin-bottom: 0; }
+    .filter-group .form-input,
+    .filter-group .form-select {
+      width: auto;
+      min-width: 140px;
+    }
+    .filter-actions {
+      display: flex;
+      gap: 8px;
+      align-items: flex-end;
+    }
+    .btn-ghost {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .btn-ghost:hover { background: var(--surface); color: var(--text); }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .toolbar-count {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .toolbar-spacer { flex: 1; }
+    .refresh-toggle {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+    .truncated-warn {
+      font-size: 12px;
+      color: var(--warning);
+      padding: 6px 20px;
+      background: rgba(234,179,8,0.06);
+      border-bottom: 1px solid rgba(234,179,8,0.2);
+    }
+
+    td.td-ts { font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    td.td-chain { font-family: 'Courier New', monospace; font-size: 12px; }
+    td.td-cost { text-align: right; font-variant-numeric: tabular-nums; }
+    td.td-tokens { text-align: right; font-variant-numeric: tabular-nums; }
+    td.td-hash { font-family: 'Courier New', monospace; font-size: 11px; color: var(--text-muted); }
+    tbody tr { cursor: pointer; }
+
+    .pagination {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 20px;
+      border-top: 1px solid var(--border);
+      justify-content: flex-end;
+    }
+    .pagination .page-info { font-size: 12px; color: var(--text-muted); margin-right: 4px; }
+    .pagination button {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-muted);
+      padding: 4px 14px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .pagination button:hover:not(:disabled) { background: var(--border); color: var(--text); }
+    .pagination button:disabled { opacity: 0.35; cursor: not-allowed; }
+    .pagination .page-label { font-size: 13px; color: var(--text-muted); }
+
+    /* badge-quarantine / badge-unknown not in base style.css */
+    .badge-quarantine { background: rgba(168,85,247,0.15); color: #a855f7; }
+    .badge-unknown    { background: rgba(148,163,184,0.15); color: var(--text-muted); }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="nav">
+    <a class="nav-brand" href="/ui/">VERONICA</a>
+    <ul class="nav-links">
+      <li><a href="/ui/">Dashboard</a></li>
+      <li><a href="/ui/events" class="active">Events</a></li>
+      <li><a href="/ui/policies">Policies</a></li>
+    </ul>
+    <span style="margin-left:auto;display:flex;align-items:center;gap:12px;">
+      <span id="status-msg" class="refresh-indicator"></span>
+    </span>
+  </nav>
+
+  <!-- Main -->
+  <main class="main">
+    <h1 class="page-title">Event Log</h1>
+
+    <div class="card">
+
+      <!-- Filter bar -->
+      <div class="filter-bar">
+        <div class="filter-group">
+          <label class="form-label" for="filter-decision">Decision</label>
+          <select id="filter-decision" class="form-select">
+            <option value="">All</option>
+            <option value="allow">allow</option>
+            <option value="halt">halt</option>
+            <option value="degrade">degrade</option>
+            <option value="retry">retry</option>
+            <option value="queue">queue</option>
+            <option value="quarantine">quarantine</option>
+            <option value="unknown">unknown</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="form-label" for="filter-chain">Chain ID</label>
+          <input id="filter-chain" class="form-input" type="text" placeholder="chain-abc123">
+        </div>
+        <div class="filter-group">
+          <label class="form-label" for="filter-since">Since</label>
+          <input id="filter-since" class="form-input" type="datetime-local">
+        </div>
+        <div class="filter-group">
+          <label class="form-label" for="filter-until">Until</label>
+          <input id="filter-until" class="form-input" type="datetime-local">
+        </div>
+        <div class="filter-group">
+          <label class="form-label" for="filter-limit">Page size</label>
+          <select id="filter-limit" class="form-select">
+            <option value="50">50</option>
+            <option value="100" selected>100</option>
+            <option value="200">200</option>
+            <option value="500">500</option>
+          </select>
+        </div>
+        <div class="filter-actions">
+          <button id="btn-apply" class="btn btn-primary btn-sm">Apply</button>
+          <button id="btn-reset" class="btn-ghost btn-sm">Reset</button>
+        </div>
+      </div>
+
+      <!-- Toolbar -->
+      <div class="toolbar">
+        <span id="event-count" class="toolbar-count">-- events</span>
+        <div class="toolbar-spacer"></div>
+        <label class="refresh-toggle">
+          <input type="checkbox" id="auto-refresh">
+          Auto-refresh (30s)
+        </label>
+      </div>
+
+      <!-- Truncation warning -->
+      <div id="truncated-warn" class="truncated-warn" style="display:none;">
+        Result capped at 10,000 events -- narrow your date range or add filters.
+      </div>
+
+      <!-- Table -->
+      <div class="card-body">
+        <table>
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Chain ID</th>
+              <th>Operation</th>
+              <th>Decision</th>
+              <th style="text-align:right">Cost (USD)</th>
+              <th style="text-align:right">Tokens</th>
+              <th>Policy Hash</th>
+              <th>Audit ID</th>
+            </tr>
+          </thead>
+          <tbody id="events-tbody">
+            <tr><td colspan="8" class="empty-state">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination -->
+      <div class="pagination">
+        <span class="page-info" id="page-info"></span>
+        <button id="btn-prev" disabled>Prev</button>
+        <span class="page-label" id="page-num">Page 1</span>
+        <button id="btn-next" disabled>Next</button>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Toast container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- API Key Modal -->
+  <div id="apikey-modal" class="modal-overlay" style="display:none;">
+    <div class="modal">
+      <div class="modal-title">Enter API Key</div>
+      <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px;">
+        Provide your X-Veronica-Key to access the event log.
+      </p>
+      <div class="form-group">
+        <label class="form-label" for="apikey-input">API Key</label>
+        <input id="apikey-input" class="form-input" type="password" placeholder="vk-..." autocomplete="off">
+      </div>
+      <div class="modal-actions">
+        <button id="apikey-save" class="btn btn-primary">Connect</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/ui/static/js/events.js"></script>
+</body>
+</html>

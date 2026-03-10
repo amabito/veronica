@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VERONICA -- Incident Replay</title>
+  <link rel="stylesheet" href="/ui/static/css/style.css">
+  <style>
+    .replay-layout {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 20px;
+      align-items: start;
+    }
+    @media (max-width: 900px) {
+      .replay-layout { grid-template-columns: 1fr; }
+    }
+
+    .form-section {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .form-row {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    textarea.form-input {
+      resize: vertical;
+      min-height: 100px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+    }
+
+    .result-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .result-summary {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+    .result-changed {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--warning);
+    }
+    .result-changed.none { color: var(--success); }
+
+    td.td-step { font-family: 'Courier New', monospace; font-size: 12px; color: var(--text-muted); }
+    td.td-decision { }
+    tr.row-changed td { background: rgba(234,179,8,0.07); }
+
+    .empty-replay {
+      text-align: center;
+      color: var(--text-muted);
+      padding: 48px 20px;
+      font-size: 13px;
+    }
+
+    .badge-changed { background: rgba(234,179,8,0.15); color: var(--warning); font-size: 11px; padding: 1px 6px; border-radius: 4px; margin-left: 6px; }
+
+    .stats-row {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    .stat-pill {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 16px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .stat-pill strong { color: var(--text); font-size: 15px; display: block; }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="nav">
+    <a class="nav-brand" href="/ui/">VERONICA</a>
+    <ul class="nav-links">
+      <li><a href="/ui/">Dashboard</a></li>
+      <li><a href="/ui/events">Events</a></li>
+      <li><a href="/ui/policies">Policies</a></li>
+      <li><a href="/ui/rollouts">Rollouts</a></li>
+      <li><a href="/ui/tenants">Tenants</a></li>
+      <li><a href="/ui/replay" class="active">Replay</a></li>
+    </ul>
+    <span style="margin-left:auto;display:flex;align-items:center;gap:12px;">
+      <span id="status-msg" class="refresh-indicator"></span>
+    </span>
+  </nav>
+
+  <!-- Main -->
+  <main class="main">
+    <h1 class="page-title">Incident Replay</h1>
+
+    <div class="replay-layout">
+
+      <!-- Left: Form -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Replay Parameters</span>
+        </div>
+        <div class="card-body">
+          <div class="form-section">
+
+            <div class="form-row">
+              <label class="form-label" for="inp-chain">Chain ID <span style="color:var(--danger)">*</span></label>
+              <input id="inp-chain" class="form-input" type="text" placeholder="chain-abc123">
+            </div>
+
+            <div class="form-row">
+              <label class="form-label" for="inp-from">From (UTC)</label>
+              <input id="inp-from" class="form-input" type="datetime-local">
+            </div>
+
+            <div class="form-row">
+              <label class="form-label" for="inp-to">To (UTC)</label>
+              <input id="inp-to" class="form-input" type="datetime-local">
+            </div>
+
+            <div class="form-row">
+              <label class="form-label" for="inp-policy">
+                Override Policy JSON
+                <span style="color:var(--text-muted);font-weight:400;margin-left:4px;">(optional)</span>
+              </label>
+              <textarea id="inp-policy" class="form-input" placeholder='{"ceiling_usd": 5.0, "on_exceed": "halt"}'></textarea>
+              <span id="policy-error" style="color:var(--danger);font-size:12px;display:none;"></span>
+            </div>
+
+            <button id="btn-run" class="btn btn-primary">Run Replay</button>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Results -->
+      <div class="card" id="result-card">
+
+        <div id="result-empty" class="empty-replay">
+          Fill in the form and click Run Replay to see decision diffs.
+        </div>
+
+        <div id="result-content" style="display:none;">
+
+          <div class="result-header">
+            <span id="result-chain" class="card-title" style="font-family:'Courier New',monospace;font-size:13px;"></span>
+            <span id="result-changed-badge"></span>
+          </div>
+
+          <div class="card-body" style="padding-bottom:12px;">
+            <div class="stats-row" id="stats-row"></div>
+          </div>
+
+          <div class="card-body" style="padding-top:0;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Step ID</th>
+                  <th>Original Decision</th>
+                  <th>Replayed Decision</th>
+                  <th>Changed</th>
+                </tr>
+              </thead>
+              <tbody id="diff-tbody">
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Toast container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- API Key Modal -->
+  <div id="apikey-modal" class="modal-overlay" style="display:none;">
+    <div class="modal">
+      <div class="modal-title">Enter API Key</div>
+      <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px;">
+        Provide your X-Veronica-Key to access replay.
+      </p>
+      <div class="form-group">
+        <label class="form-label" for="apikey-input">API Key</label>
+        <input id="apikey-input" class="form-input" type="password" placeholder="vk-..." autocomplete="off">
+      </div>
+      <div class="modal-actions">
+        <button id="apikey-save" class="btn btn-primary">Connect</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/ui/static/js/replay.js"></script>
+</body>
+</html>

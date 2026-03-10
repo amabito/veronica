@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VERONICA -- Rollouts</title>
+  <link rel="stylesheet" href="/ui/static/css/style.css">
+  <style>
+    /* State badge colors */
+    .badge-draft     { background: rgba(148,163,184,0.15); color: #94a3b8; }
+    .badge-simulated { background: rgba(6,182,212,0.15);   color: #06b6d4; }
+    .badge-approved  { background: rgba(34,197,94,0.15);   color: #22c55e; }
+    .badge-promoted  { background: rgba(234,179,8,0.15);   color: #eab308; }
+    .badge-active    { background: rgba(34,197,94,0.28);   color: #4ade80; font-weight: 700; }
+    .badge-revoked   { background: rgba(239,68,68,0.15);   color: #ef4444; }
+
+    /* Action buttons inside table cells */
+    .action-cell {
+      display: flex;
+      gap: 5px;
+      flex-wrap: wrap;
+    }
+    .btn-action {
+      padding: 3px 9px;
+      border-radius: 5px;
+      font-size: 11px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      transition: opacity 0.15s;
+      white-space: nowrap;
+    }
+    .btn-action:hover { opacity: 0.75; }
+    .btn-simulate { background: rgba(6,182,212,0.2);   color: #06b6d4; }
+    .btn-approve  { background: rgba(34,197,94,0.2);   color: #22c55e; }
+    .btn-promote  { background: rgba(234,179,8,0.2);   color: #eab308; }
+    .btn-activate { background: rgba(59,130,246,0.2);  color: #3b82f6; }
+    .btn-revoke   { background: rgba(239,68,68,0.15);  color: #ef4444; }
+
+    /* Toolbar / filter bar */
+    .toolbar-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+    .toolbar-spacer { flex: 1; }
+
+    /* New rollout collapsible form */
+    .form-panel {
+      margin-bottom: 20px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+    }
+    .form-panel-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+    .form-grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    @media (max-width: 600px) {
+      .form-grid-2 { grid-template-columns: 1fr; }
+    }
+
+    /* Row clickable */
+    .rollout-row { cursor: pointer; }
+    .rollout-row.selected td { background: rgba(59,130,246,0.10) !important; }
+
+    td.td-id    { font-family: 'Courier New', monospace; font-size: 11px; color: var(--text-muted); }
+    td.td-chain { font-family: 'Courier New', monospace; font-size: 12px; }
+    td.td-ts    { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+    td.td-cost  { text-align: right; font-variant-numeric: tabular-nums; font-size: 13px; }
+    td.td-by    { font-size: 12px; }
+
+    /* Detail side panel */
+    .page-layout {
+      display: grid;
+      grid-template-columns: 1fr 360px;
+      gap: 20px;
+      align-items: start;
+    }
+    @media (max-width: 960px) {
+      .page-layout { grid-template-columns: 1fr; }
+    }
+
+    .detail-section { margin-bottom: 14px; }
+    .detail-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+    .detail-value { font-size: 13px; color: var(--text); }
+    .detail-mono {
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 8px 10px;
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 280px;
+      overflow-y: auto;
+    }
+
+    /* History timeline */
+    .timeline { list-style: none; padding: 0; margin: 0; }
+    .timeline li {
+      display: flex;
+      gap: 8px;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      align-items: baseline;
+    }
+    .timeline li:last-child { border-bottom: none; }
+    .tl-ts    { color: var(--text-muted); white-space: nowrap; }
+    .tl-actor { color: var(--text-muted); margin-left: auto; font-style: italic; }
+
+    /* Action bar in detail panel */
+    .action-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+
+    /* Actor modal input */
+    .modal-subtitle {
+      color: var(--text-muted);
+      font-size: 12px;
+      margin-bottom: 12px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="nav">
+    <a class="nav-brand" href="/ui/">VERONICA</a>
+    <ul class="nav-links">
+      <li><a href="/ui/">Dashboard</a></li>
+      <li><a href="/ui/events">Events</a></li>
+      <li><a href="/ui/policies">Policies</a></li>
+      <li><a href="/ui/rollouts" class="active">Rollouts</a></li>
+      <li><a href="/ui/tenants">Tenants</a></li>
+      <li><a href="/ui/replay">Replay</a></li>
+    </ul>
+    <span style="margin-left:auto;display:flex;align-items:center;gap:12px;">
+      <span id="status-msg" class="refresh-indicator"></span>
+    </span>
+  </nav>
+
+  <!-- Main -->
+  <main class="main">
+    <h1 class="page-title">Rollout Pipeline</h1>
+
+    <!-- New Rollout form (collapsible) -->
+    <div class="form-panel" id="new-rollout-panel" style="display:none;">
+      <div class="form-panel-title">New Rollout</div>
+      <div class="form-grid-2">
+        <div class="form-group">
+          <label class="form-label" for="nr-chain-id">Chain ID <span style="color:var(--danger)">*</span></label>
+          <input id="nr-chain-id" class="form-input" type="text" placeholder="chain-abc123">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="nr-ceiling-usd">Ceiling USD <span style="color:var(--danger)">*</span></label>
+          <input id="nr-ceiling-usd" class="form-input" type="number" step="0.01" min="0" placeholder="10.00">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="nr-on-exceed">On Exceed</label>
+          <select id="nr-on-exceed" class="form-select">
+            <option value="halt">halt</option>
+            <option value="degrade">degrade</option>
+            <option value="queue">queue</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="nr-created-by">Created By</label>
+          <input id="nr-created-by" class="form-input" type="text" placeholder="alice">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:4px;">
+        <button id="btn-create-submit" class="btn btn-primary">Create</button>
+        <button id="btn-create-cancel" class="btn" style="background:var(--surface-alt);color:var(--text-muted);border:1px solid var(--border);">Cancel</button>
+      </div>
+    </div>
+
+    <div class="page-layout">
+
+      <!-- Left: table -->
+      <div class="card">
+        <!-- Toolbar -->
+        <div class="toolbar-bar">
+          <label class="form-label" for="filter-state" style="display:inline;margin:0;margin-right:4px;">State</label>
+          <select id="filter-state" class="form-select" style="width:auto;min-width:130px;">
+            <option value="">All</option>
+            <option value="draft">draft</option>
+            <option value="simulated">simulated</option>
+            <option value="approved">approved</option>
+            <option value="promoted">promoted</option>
+            <option value="active">active</option>
+            <option value="revoked">revoked</option>
+          </select>
+          <div class="toolbar-spacer"></div>
+          <span id="rollout-count" class="refresh-indicator"></span>
+          <button id="btn-new-rollout" class="btn btn-primary btn-sm">+ New Rollout</button>
+        </div>
+
+        <!-- Table -->
+        <div class="card-body">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>State</th>
+                <th>Chain ID</th>
+                <th style="text-align:right">Ceiling USD</th>
+                <th>Created At</th>
+                <th>Created By</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="rollouts-tbody">
+              <tr><td colspan="7" class="empty-state">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Right: detail panel -->
+      <div class="card" id="detail-card">
+        <div id="detail-empty" style="text-align:center;color:var(--text-muted);padding:48px 20px;font-size:13px;">
+          Select a rollout to view details.
+        </div>
+
+        <div id="detail-content" style="display:none;">
+          <div class="card-header">
+            <span class="card-title">Detail</span>
+            <span id="detail-state-badge"></span>
+          </div>
+          <div class="card-body" style="padding:16px;">
+
+            <div class="detail-section">
+              <div class="detail-label">ID</div>
+              <div class="detail-value detail-mono" id="detail-id" style="padding:4px 8px;min-height:auto;"></div>
+            </div>
+
+            <div class="detail-section">
+              <div class="detail-label">Chain ID</div>
+              <div class="detail-value" id="detail-chain" style="font-family:'Courier New',monospace;font-size:12px;"></div>
+            </div>
+
+            <div class="detail-section">
+              <div class="detail-label">Ceiling USD</div>
+              <div class="detail-value" id="detail-ceiling"></div>
+            </div>
+
+            <div class="detail-section">
+              <div class="detail-label">On Exceed</div>
+              <div class="detail-value" id="detail-on-exceed"></div>
+            </div>
+
+            <div class="detail-section">
+              <div class="detail-label">Created By</div>
+              <div class="detail-value" id="detail-by"></div>
+            </div>
+
+            <div class="detail-section">
+              <div class="detail-label">Created At</div>
+              <div class="detail-value" id="detail-created"></div>
+            </div>
+
+            <div class="detail-section" id="sim-section" style="display:none;">
+              <div class="detail-label">Simulation Result</div>
+              <div class="detail-value detail-mono" id="detail-sim"></div>
+            </div>
+
+            <div class="detail-section">
+              <div class="detail-label">State History</div>
+              <ul class="timeline" id="detail-history">
+                <li style="color:var(--text-muted);">No transitions yet.</li>
+              </ul>
+            </div>
+
+            <!-- Action buttons populated by JS -->
+            <div class="action-bar" id="action-bar"></div>
+
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Toast container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Actor confirm modal (for state transitions) -->
+  <div id="actor-modal" class="modal-overlay" style="display:none;">
+    <div class="modal">
+      <div class="modal-title" id="actor-modal-title">Confirm Action</div>
+      <p class="modal-subtitle" id="actor-modal-subtitle"></p>
+      <div class="form-group">
+        <label class="form-label" for="actor-input">Actor (your name)</label>
+        <input id="actor-input" class="form-input" type="text" placeholder="alice" autocomplete="off">
+      </div>
+      <div class="modal-actions">
+        <button id="actor-cancel" class="btn" style="background:var(--surface);border:1px solid var(--border);color:var(--text-muted);">Cancel</button>
+        <button id="actor-confirm" class="btn btn-primary">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- API Key Modal -->
+  <div id="apikey-modal" class="modal-overlay" style="display:none;">
+    <div class="modal">
+      <div class="modal-title">Enter API Key</div>
+      <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px;">
+        Provide your X-Veronica-Key to access rollouts.
+      </p>
+      <div class="form-group">
+        <label class="form-label" for="apikey-input">API Key</label>
+        <input id="apikey-input" class="form-input" type="password" placeholder="vk-..." autocomplete="off">
+      </div>
+      <div class="modal-actions">
+        <button id="apikey-save" class="btn btn-primary">Connect</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/ui/static/js/rollouts.js"></script>
+</body>
+</html>

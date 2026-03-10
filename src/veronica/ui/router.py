@@ -30,7 +30,31 @@ async def dashboard_index() -> FileResponse:
     return FileResponse(str(STATIC_DIR / "index.html"))
 
 
+@router.get("/ui/events", include_in_schema=False)
+async def events_page() -> FileResponse:
+    """Serve the event log HTML."""
+    return FileResponse(str(STATIC_DIR / "events.html"))
+
+
+@router.get("/ui/incident", include_in_schema=False)
+async def incident_page() -> FileResponse:
+    """Serve the incident detail HTML."""
+    return FileResponse(str(STATIC_DIR / "incident.html"))
+
+
 @router.get("/ui/policies", include_in_schema=False)
 async def policies_page() -> FileResponse:
     """Serve the policy editor HTML."""
     return FileResponse(str(STATIC_DIR / "policies.html"))
+
+
+@router.get("/ui/replay", include_in_schema=False)
+async def replay_page() -> FileResponse:
+    """Serve the incident replay HTML."""
+    return FileResponse(str(STATIC_DIR / "replay.html"))
+
+
+@router.get("/ui/rollouts", include_in_schema=False)
+async def rollouts_page() -> FileResponse:
+    """Serve the rollout pipeline HTML."""
+    return FileResponse(str(STATIC_DIR / "rollouts.html"))

@@ -15,7 +15,9 @@ from veronica.api.auth import APIKeyMiddleware
 from veronica.api.policy_registry import PolicyRegistry
 from veronica.distribution.policy_distributor import PolicyDistributor
 from veronica.ingest.event_ingestor import EventIngestor
+from veronica.rollouts.registry import RolloutRegistry
 from veronica.store import MemoryStore
+from veronica.tenants import TenantRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -27,11 +29,15 @@ async def _lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     distributor = PolicyDistributor()
     ingestor = EventIngestor()
     registry = PolicyRegistry(distributor)
+    tenant_registry = TenantRegistry()
+    rollout_registry = RolloutRegistry()
 
     app.state.store = store
     app.state.distributor = distributor
     app.state.ingestor = ingestor
     app.state.registry = registry
+    app.state.tenant_registry = tenant_registry
+    app.state.rollout_registry = rollout_registry
 
     logger.info("Veronica API started")
     yield
@@ -44,7 +50,10 @@ def create_app() -> FastAPI:
     from veronica.api.routes import export as export_router
     from veronica.api.routes import health as health_router
     from veronica.api.routes import policies as policies_router
+    from veronica.api.routes import replay as replay_router
     from veronica.api.routes import simulate as simulate_router
+    from veronica.api.routes import tenants as tenants_router
+    from veronica.rollouts import router as rollouts_router_module
     from veronica.ui.router import mount_static
     from veronica.ui.router import router as ui_router
 
@@ -62,6 +71,13 @@ def create_app() -> FastAPI:
             {"name": "simulate", "description": "Side-effect-free policy simulation"},
             {"name": "events", "description": "Paginated, filterable event audit log"},
             {"name": "export", "description": "Full JSON export for backup and migration"},
+            {
+                "name": "rollouts",
+                "description": (
+                    "Rollout pipeline management "
+                    "(draft->simulated->approved->promoted->active->revoked)"
+                ),
+            },
         ],
         lifespan=_lifespan,
     )
@@ -100,7 +116,10 @@ def create_app() -> FastAPI:
     app.include_router(events_router.router)
     app.include_router(policies_router.router)
     app.include_router(simulate_router.router)
+    app.include_router(replay_router.router)
     app.include_router(export_router.router)
+    app.include_router(tenants_router.router)
+    app.include_router(rollouts_router_module.router)
     app.include_router(ui_router)
     mount_static(app)
 

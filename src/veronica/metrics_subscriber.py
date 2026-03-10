@@ -2,7 +2,10 @@
 """VERONICA OS observability -- Prometheus metrics subscriber."""
 from __future__ import annotations
 
-from typing import Any, Mapping
+from typing import TYPE_CHECKING, Any, Mapping
+
+if TYPE_CHECKING:
+    from prometheus_client import CollectorRegistry
 
 _KNOWN_STAGES = frozenset({
     "collector", "analyzer", "cost_model", "planner", "arbiter",
@@ -36,7 +39,8 @@ class MetricsSubscriber:
         prefix: str = "veronica",
         registry: "CollectorRegistry | None" = None,
     ) -> None:
-        from prometheus_client import CollectorRegistry, Counter, Histogram, REGISTRY
+        from prometheus_client import CollectorRegistry as _CR, Counter, Histogram, REGISTRY
+        _ = _CR  # ensure import is not stripped
 
         registry = registry or REGISTRY
 

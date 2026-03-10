@@ -17,6 +17,7 @@ from veronica_core.containment.execution_context import (
 )
 
 from veronica._timeguard import TimeBudgetExceeded, run_with_budget
+from veronica.policy_audit import compute_policy_hash as _compute_policy_hash_canonical
 from veronica.analyzer import RuleAnalyzer
 from veronica.arbiter import PassthroughArbiter
 from veronica.collector import SimpleCollector
@@ -65,6 +66,14 @@ _KNOWN_STAGES = frozenset({
 _DEFAULT_TIMEOUT_MS = 30_000
 
 T = TypeVar("T")
+
+def _compute_policy_hash(policy: "PolicyConfig") -> str:
+    """Return SHA-256 hex digest of a PolicyConfig.
+
+    Delegates to policy_audit.compute_policy_hash, which is the single
+    source of truth for policy hash computation across the codebase.
+    """
+    return _compute_policy_hash_canonical(policy)
 
 
 def _make_fallback_snapshot(intent: StepIntent, reason: str) -> ContextSnapshot:
@@ -544,6 +553,9 @@ class VeronicaOS:
                 k: v for k, v in all_stage_times.items()
                 if k in _KNOWN_STAGES
             },
+            # Audit tracing (Task #4)
+            "policy_hash": _compute_policy_hash(handle.policy),
+            "audit_id": uuid.uuid4().hex,
         }
         t0 = time.monotonic()
         try:

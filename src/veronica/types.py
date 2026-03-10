@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Literal, Mapping, Sequence
+from typing import Any, Literal, Mapping
 
 from veronica_core.containment.execution_context import ExecutionConfig
 from veronica_core.shield.event import SafetyEvent
@@ -120,6 +120,10 @@ class DecisionMeta:
     degraded: bool
     stage_time_ms: Mapping[str, float]
     org_denial: str | None = None
+    # Audit tracing (added in CP v0.8): stable hash of the active PolicyConfig
+    # and a per-decision UUID4 for log correlation.
+    policy_hash: str = ""
+    audit_id: str = ""
 
 
 # --- PolicyConfig: the contract between OS and Engine ---

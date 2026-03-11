@@ -404,7 +404,13 @@ function handleTransition(id, action, needsActor) {
 }
 
 // ---- Perform transition API call ----
+const VALID_ACTIONS = ['simulate', 'approve', 'promote', 'activate', 'revoke'];
+
 async function doTransition(rolloutId, action, actor) {
+  if (!VALID_ACTIONS.includes(action)) {
+    showToast('Invalid action: ' + action, 'error');
+    return;
+  }
   statusMsg.textContent = `${action}...`;
   try {
     const payload = actor ? { actor } : {};
@@ -452,3 +458,7 @@ function init() {
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
+window.addEventListener('beforeunload', () => {
+  if (appState.refreshTimer) clearInterval(appState.refreshTimer);
+});

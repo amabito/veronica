@@ -54,7 +54,7 @@ function circuitStateBadge(state) {
   if (upper === 'CLOSED') return 'CLOSED';
   if (upper === 'HALF_OPEN') return 'HALF_OPEN';
   if (upper === 'OPEN') return 'OPEN';
-  return state;
+  return escHtml(state);
 }
 
 function updateStats(events, activeChains, circuitState) {

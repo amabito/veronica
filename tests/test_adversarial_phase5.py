@@ -418,6 +418,8 @@ class TestAdversarialPhase5DoS:
         rollout = reg.create(policy_config=policy, created_by="tester")
 
         # Build a result that is clearly over 64KB
+        # NOTE: Tests deprecated set_simulation_result() directly for registry-level
+        # coverage. Router uses simulate() which has the same size check.
         huge_result = {"data": "x" * 70_000}
         with pytest.raises(ValueError, match="65536"):
             reg.set_simulation_result(rollout.id, huge_result)

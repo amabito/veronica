@@ -12,6 +12,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 from veronica.api.schemas import SimulateRequest, SimulateResponse, SimulationStepResult
 from veronica.distribution.policy_distributor import PolicyValidationError
+from veronica.policy_audit import compute_policy_hash
 from veronica.types import PolicyConfig
 
 logger = logging.getLogger(__name__)
@@ -222,14 +223,17 @@ async def simulate(request: Request, body: SimulateRequest) -> SimulateResponse:
             status_code=422, detail="Invalid simulation request"
         ) from exc
 
-    # Distribute to get the policy_hash (read-only operation on distributor)
+    # Validate via distributor (read-only) but compute hash without
+    # incrementing the distributor's monotonic version counter.
     try:
-        bundle = distributor.distribute(policy)
+        distributor._validate(policy)
     except (PolicyValidationError, TypeError, ValueError) as exc:
         logger.warning("[simulate] policy validation error: %s", exc)
         raise HTTPException(
             status_code=422, detail="Invalid policy configuration"
         ) from exc
+
+    policy_hash = compute_policy_hash(policy)
 
     step_results: list[SimulationStepResult] = []
     cumulative_cost = 0.0
@@ -281,7 +285,7 @@ async def simulate(request: Request, body: SimulateRequest) -> SimulateResponse:
             break
 
     return SimulateResponse(
-        policy_hash=bundle.policy_hash,
+        policy_hash=policy_hash,
         total_steps=len(body.steps),
         steps_allowed=steps_allowed,
         steps_halted=steps_halted,

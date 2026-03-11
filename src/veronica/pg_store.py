@@ -127,7 +127,11 @@ class PgStore:
             max_size=max_size,
             open=True,
         )
-        self._ensure_schema()
+        try:
+            self._ensure_schema()
+        except Exception:
+            self._pool.close()
+            raise
 
     def _ensure_schema(self) -> None:
         """Create tables if they do not exist."""

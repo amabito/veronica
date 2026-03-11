@@ -14,6 +14,7 @@ from pydantic import BaseModel
 router = APIRouter(tags=["runs"])
 
 _ACTIVE_WINDOW_SECONDS = 300  # chain is "active" if event in last 5 minutes
+_CHAIN_ID_RE = r"^[a-zA-Z0-9_:@.\-]+$"
 
 
 class RunDetail(BaseModel):
@@ -41,7 +42,10 @@ class RunDetail(BaseModel):
 )
 async def get_run(
     request: Request,
-    chain_id: Annotated[str, Path(max_length=256, description="Chain ID to look up")],
+    chain_id: Annotated[
+        str,
+        Path(min_length=1, max_length=256, pattern=_CHAIN_ID_RE, description="Chain ID to look up"),
+    ],
 ) -> RunDetail:
     """Return aggregate event data for one chain."""
     ingestor = request.app.state.ingestor

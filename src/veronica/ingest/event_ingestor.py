@@ -269,15 +269,11 @@ class EventIngestor:
             return
 
         flush_now: list[CPStepOutcome] | None = None
+        warn_unknown_decision = False
         with self._lock:
             self._ingested_total += 1
-            # Log unmapped decisions as warnings (outcome is still ingested)
             if outcome.decision == "unknown":
-                logger.warning(
-                    "[EventIngestor] unrecognized decision for event_type=%s; "
-                    "mapped to 'unknown' (not 'allow')",
-                    repr(getattr(event, "event_type", "<unknown>"))[:128],
-                )
+                warn_unknown_decision = True
             if self._batch_size == 0:
                 # No batching: flush immediately (single item)
                 flush_now = [outcome]
@@ -286,6 +282,14 @@ class EventIngestor:
                 if len(self._batch) >= self._batch_size:
                     flush_now = self._batch
                     self._batch = []
+
+        # Log outside lock to avoid blocking concurrent callers
+        if warn_unknown_decision:
+            logger.warning(
+                "[EventIngestor] unrecognized decision for event_type=%s; "
+                "mapped to 'unknown' (not 'allow')",
+                repr(getattr(event, "event_type", "<unknown>"))[:128],
+            )
 
         if flush_now is not None:
             self._write(flush_now)

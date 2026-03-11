@@ -24,7 +24,7 @@ def _make_outcome(**kwargs: object) -> CPStepOutcome:
         "cost_usd": 0.001,
         "tokens": 100,
         "duration_ms": 50.0,
-        "policy_hash": "abc123",
+        "policy_hash": "a" * 64,
         "audit_id": "audit-1",
         "timestamp": time.time(),
     }
@@ -130,13 +130,13 @@ class TestEventsFiltering:
         assert data["items"][0]["step_id"] == "s3"
 
     def test_filter_by_policy_hash(self, populated_client: TestClient) -> None:
-        resp = populated_client.get("/events", params={"policy_hash": "abc123"})
+        resp = populated_client.get("/events", params={"policy_hash": "a" * 64})
         data = resp.json()
         assert data["total"] == 4
-        assert all(item["policy_hash"] == "abc123" for item in data["items"])
+        assert all(item["policy_hash"] == "a" * 64 for item in data["items"])
 
     def test_filter_by_policy_hash_no_match(self, populated_client: TestClient) -> None:
-        resp = populated_client.get("/events", params={"policy_hash": "deadbeef"})
+        resp = populated_client.get("/events", params={"policy_hash": "b" * 64})
         data = resp.json()
         assert data["total"] == 0
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import heapq
 import math
+import re
 from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -19,6 +20,7 @@ _VALID_DECISIONS = frozenset(
 MAX_LIMIT = 1000
 DEFAULT_LIMIT = 100
 MAX_RESULTS_CAP = 10000
+_HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
 class EventItem(BaseModel):
@@ -133,6 +135,11 @@ async def list_events(
         decision_set = set(decision)
         outcomes = [o for o in outcomes if o.decision in decision_set]
     if policy_hash is not None:
+        if not _HEX64_RE.match(policy_hash):
+            raise HTTPException(
+                status_code=400,
+                detail="policy_hash must be a 64-character lowercase hex string",
+            )
         outcomes = [o for o in outcomes if o.policy_hash == policy_hash]
     if since is not None:
         if not math.isfinite(since):
@@ -142,6 +149,8 @@ async def list_events(
         if not math.isfinite(until):
             raise HTTPException(status_code=400, detail="until must be a finite number")
         outcomes = [o for o in outcomes if o.timestamp <= until]
+    if since is not None and until is not None and since > until:
+        raise HTTPException(status_code=400, detail="since must be <= until")
 
     # Bounded selection: O(N) heap selection instead of O(N log N) full sort.
     # Caps memory before sorting to prevent DoS via unbounded in-memory sort.

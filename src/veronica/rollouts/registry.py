@@ -150,6 +150,11 @@ class RolloutRegistry:
     def set_simulation_result(self, rollout_id: str, result: dict) -> Rollout:
         """Store simulation result on an existing rollout in DRAFT state.
 
+        .. deprecated::
+            The router now uses :meth:`simulate` which atomically sets the
+            result and transitions state. This method is retained for direct
+            test usage only.
+
         Raises KeyError if the rollout does not exist.
         Raises InvalidTransitionError if the rollout is not in DRAFT state.
         Raises ValueError if the serialized result exceeds _MAX_SIM_RESULT_SIZE bytes.

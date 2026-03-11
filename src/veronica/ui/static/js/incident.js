@@ -23,13 +23,6 @@ function showToast(message, type = 'success') {
   setTimeout(() => toast.remove(), 3500);
 }
 
-function escHtml(s) {
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
 
 function formatTime(ts) {
   if (!ts) return '--';

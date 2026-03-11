@@ -3,9 +3,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated
-
-from fastapi import APIRouter, HTTPException, Path, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from veronica.api.schemas import (
     PolicyListResponse,
@@ -13,6 +11,7 @@ from veronica.api.schemas import (
     PolicySummary,
     PolicyUpdateRequest,
 )
+from veronica.api.routes._validators import SafeChainId
 from veronica.distribution.policy_distributor import PolicyBundle, PolicyValidationError
 
 router = APIRouter(prefix="/policies", tags=["policies"])
@@ -72,8 +71,6 @@ async def list_policies(
     )
 
 
-_CHAIN_ID_RE = r"^[a-zA-Z0-9_:@.\-]+$"
-SafeChainId = Annotated[str, Path(min_length=1, max_length=256, pattern=_CHAIN_ID_RE)]
 
 
 @router.get("/{chain_id}", response_model=PolicyResponse, summary="Get policy by ID")

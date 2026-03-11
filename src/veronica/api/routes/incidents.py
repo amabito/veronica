@@ -8,9 +8,9 @@ from typing import Annotated, Any
 from fastapi import APIRouter, HTTPException, Path, Request
 from pydantic import BaseModel
 
-router = APIRouter(tags=["incidents"])
+from veronica.api.routes._validators import CHAIN_ID_RE
 
-_CHAIN_ID_RE = r"^[a-zA-Z0-9_:@.\-]+$"
+router = APIRouter(tags=["incidents"])
 _HALT_DECISIONS = frozenset({"halt", "degrade"})
 
 
@@ -55,10 +55,10 @@ class IncidentDetail(BaseModel):
 async def get_incident(
     request: Request,
     chain_id: Annotated[
-        str, Path(min_length=1, max_length=256, pattern=_CHAIN_ID_RE, description="Chain ID")
+        str, Path(min_length=1, max_length=256, pattern=CHAIN_ID_RE, description="Chain ID")
     ],
     step_id: Annotated[
-        str, Path(min_length=1, max_length=256, pattern=_CHAIN_ID_RE, description="Step ID")
+        str, Path(min_length=1, max_length=256, pattern=CHAIN_ID_RE, description="Step ID")
     ],
 ) -> IncidentDetail:
     """Return incident detail for one chain+step combination."""

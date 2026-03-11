@@ -11,10 +11,11 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Path, Request
 from pydantic import BaseModel
 
+from veronica.api.routes._validators import CHAIN_ID_RE
+
 router = APIRouter(tags=["runs"])
 
 _ACTIVE_WINDOW_SECONDS = 300  # chain is "active" if event in last 5 minutes
-_CHAIN_ID_RE = r"^[a-zA-Z0-9_:@.\-]+$"
 
 
 class RunDetail(BaseModel):
@@ -44,7 +45,7 @@ async def get_run(
     request: Request,
     chain_id: Annotated[
         str,
-        Path(min_length=1, max_length=256, pattern=_CHAIN_ID_RE, description="Chain ID to look up"),
+        Path(min_length=1, max_length=256, pattern=CHAIN_ID_RE, description="Chain ID to look up"),
     ],
 ) -> RunDetail:
     """Return aggregate event data for one chain."""

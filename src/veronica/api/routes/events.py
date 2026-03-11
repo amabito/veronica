@@ -11,11 +11,9 @@ from typing import Annotated, Any
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
-router = APIRouter(tags=["events"])
+from veronica.schemas.events import _VALID_DECISIONS
 
-_VALID_DECISIONS = frozenset(
-    {"allow", "halt", "degrade", "retry", "quarantine", "queue", "unknown"}
-)
+router = APIRouter(tags=["events"])
 
 MAX_LIMIT = 1000
 DEFAULT_LIMIT = 100

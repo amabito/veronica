@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import time
 from contextvars import ContextVar
 from typing import Mapping, Sequence
@@ -109,7 +110,6 @@ class RedisArbiter:
         actual_cost_usd: float,
     ) -> None:
         """Settle reservation: refund surplus or deduct extra."""
-        import math
 
         remaining_key = f"veronica:{self._scope}:budget:remaining"
         alloc_key = f"veronica:{self._scope}:alloc:{request_id}:{step_id}"

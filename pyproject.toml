@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "veronica"
 version = "0.8.0"
-description = "Execution OS for LLM systems. Policy planning, budget allocation, and governance built on veronica-core."
+description = "LLM governance control plane. Policy authoring, simulation, rollout pipelines, tenant hierarchy, and audit dashboards built on veronica-core."
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.10"
@@ -24,8 +24,8 @@ classifiers = [
     "Typing :: Typed",
 ]
 keywords = [
-    "llm", "agent", "planner", "budget", "policy", "governance",
-    "multi-agent", "cost-prediction", "execution-os",
+    "llm", "agent", "control-plane", "budget", "policy", "governance",
+    "rollout", "tenant", "simulation", "audit",
 ]
 dependencies = [
     "fastapi>=0.135.1",

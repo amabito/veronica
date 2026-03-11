@@ -1,33 +1,82 @@
-# VERONICA
+# veronica
 
-**The Execution OS for LLM systems.**
+**LLM governance control plane.**
 
-[veronica-core](https://github.com/amabito/veronica-core) is the containment engine.
-VERONICA is the Execution OS built around it.
+Policy authoring, simulation, rollout pipelines, tenant hierarchy, incident replay,
+and audit dashboards -- built on [veronica-core](https://github.com/amabito/veronica-core).
 
 ---
 
 ## What This Is
 
-LLM execution systems need two distinct layers:
+veronica is the control plane for [veronica-core](https://github.com/amabito/veronica-core).
 
-**Engine** ([veronica-core](https://github.com/amabito/veronica-core)): deterministic enforcement of cost, step, and retry limits. Runs local. No dependencies. Guarantees are unconditional.
+veronica-core is the deterministic enforcement kernel -- cost ceilings, step limits,
+circuit breakers, distributed budget. It runs local, has no dependencies, and its
+guarantees are unconditional.
 
-**OS** (this repository): everything above the engine. Policy planning, budget allocation across agents, cost prediction, organizational governance, and cloud coordination.
+This repository is the management layer on top: author policies, test them in simulation,
+roll them out through approval gates, organize tenants, and audit what happened.
 
 ```
-Application
-     |
-veronica-core   -- local containment (OSS engine)
-     |
-VERONICA        -- Execution OS (Planner / Cloud / org policy)
-     |
-LLM Providers
+Your Application
+       |
+  veronica-core    -- enforcement kernel (pip install veronica-core)
+       |
+  veronica         -- control plane (this repo)
+       |
+  LLM Providers
 ```
 
 ---
 
-## Quickstart: Metrics + Dashboard
+## Features
+
+- **Policy authoring** -- create and version cost/step/token policies per chain via HTTP API
+- **Simulation** -- dry-run steps against a policy before deploying (`POST /simulate`)
+- **Rollout pipeline** -- DRAFT -> SIMULATED -> APPROVED -> PROMOTED -> ACTIVE -> REVOKED
+- **Tenant hierarchy** -- org -> team -> chain with policy inheritance and narrowing overrides
+- **Incident replay** -- re-evaluate recorded events under alternative policies
+- **Audit dashboard** -- event log, decision timeline, cost tracking (Grafana + built-in UI)
+- **HMAC-signed bundles** -- immutable policy distribution with integrity verification
+- **PostgreSQL backend** -- persistent event store (in-memory default for dev)
+- **Prometheus metrics** -- `veronica_decisions_total`, `veronica_cost_usd_total`, etc.
+
+---
+
+## Quickstart
+
+### HTTP API (primary interface)
+
+```bash
+cp .env.example .env   # set VERONICA_API_KEY
+cd deploy/ && docker compose up -d
+```
+
+| Service    | URL                           |
+|------------|-------------------------------|
+| API + Docs | http://127.0.0.1:8000/docs    |
+| Dashboard  | http://127.0.0.1:8000/ui      |
+| Grafana    | http://127.0.0.1:3000         |
+| Prometheus | http://127.0.0.1:9090         |
+| Health     | http://127.0.0.1:8000/health  |
+
+```bash
+# Create a policy
+curl -X PUT http://localhost:8000/policies/my-agent \
+  -H "X-Veronica-Key: $VERONICA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"chain_id":"my-agent","ceiling_usd":1.0,"on_exceed":"halt","current_version":0}'
+
+# Simulate enforcement
+curl -X POST http://localhost:8000/simulate \
+  -H "X-Veronica-Key: $VERONICA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"policy":{"chain_id":"my-agent","ceiling_usd":1.0,"on_exceed":"halt"},
+       "steps":[{"kind":"llm","cost_usd":0.30,"tokens_out":500,"elapsed_ms":200}]}'
+```
+
+### Embedded Python (for kernel-level integration)
 
 ```bash
 pip install veronica[metrics]
@@ -43,71 +92,71 @@ emitter.subscribe("prometheus", MetricsSubscriber())
 vos = VeronicaOS(emitter=emitter)
 ```
 
-```bash
-cd deploy/ && docker compose up -d
+---
+
+## Architecture
+
+```
+veronica-core (kernel)       veronica (control plane)
+-------------------------    --------------------------------
+ExecutionContext              Policy authoring (PUT /policies)
+ShieldPipeline               Simulation (POST /simulate)
+BudgetEnforcer               Rollout pipeline (/rollouts)
+CircuitBreaker               Tenant hierarchy (/tenants)
+AdaptiveBudgetHook           Incident replay (POST /replay)
+Distributed budget (Redis)   Event ingest + audit dashboard
+OTel export                  Prometheus + Grafana
 ```
 
-| Service    | URL                        |
-|------------|----------------------------|
-| Metrics    | http://127.0.0.1:9464/metrics |
-| Prometheus | http://127.0.0.1:9090      |
-| Grafana    | http://127.0.0.1:3000      |
+The kernel enforces. The control plane manages.
 
-**Grafana and Prometheus bind to 127.0.0.1 only. Do NOT expose to public networks.** Anonymous viewer access is enabled for local use; if you deploy externally, disable `GF_AUTH_ANONYMOUS_ENABLED` and set a strong admin password.
-
----
-
-## Layers
-
-### veronica-core (Engine)
-- `ExecutionContext` — bounded execution scope
-- `ShieldPipeline` — pre-call enforcement hooks
-- `BudgetEnforcer` — cost ceiling per chain
-- `CircuitBreaker` — failure isolation
-- `AdaptiveBudgetHook` — feedback-based ceiling adjustment
-- Distributed budget (Redis), OTel export, multi-agent containment
-
-Single library. MIT. `pip install veronica-core`. No cloud required.
-
-### VERONICA (OS)
-Coordination and governance layer built on veronica-core:
-
-- **Planner** — decides what limits to set per agent and workload
-- **Budget allocation** — distributes budget across competing agents
-- **Cost prediction** — estimates spend before LLM calls are made
-- **Arbitration** — resolves contention under shared resource constraints
-- **Org policy engine** — organization-wide containment rules
-- **Dashboard and alerts** — visibility into execution health
-- **Compliance layer** — audit trail and policy enforcement at scale
-
----
-
-## Design Principle
-
-The engine enforces. The OS decides.
-
-veronica-core's guarantees are unconditional — they do not depend on VERONICA being present.
-VERONICA extends those guarantees across agents, services, and organizations.
-
-A probabilistic or adaptive layer must never sit inside the enforcement boundary.
+veronica-core's guarantees are unconditional -- they do not depend on the control plane.
+The control plane extends those guarantees with policy lifecycle, visibility, and
+organizational structure.
 
 ---
 
 ## Status
 
-veronica-core is [v1.0](https://github.com/amabito/veronica-core/releases/tag/v1.0.0). Engine is stable.
+**veronica-core**: [v3.4.3](https://github.com/amabito/veronica-core) -- stable, 4837 tests.
 
-| v0.5.0 | Phase 5 | Grafana Dashboard: metrics exporter, docker-compose provisioning, 5-panel dashboard |
-| v0.6.0 | Phase 6b | LLM integration adapter: `step()` context manager, `run_step()` sugar |
-| v0.7.0 | Phase 7 | Org policy engine: validate/clamp, `step_denied` metric |
+**veronica (this repo)**: v0.8.0 -- 1197 tests.
 
-**Current:** v0.7.0 -- 232 tests, 94% coverage. Protocol interfaces stable since v0.1.0.
+| Version | Milestone |
+|---------|-----------|
+| v0.8.0  | Control plane GA: HTTP API, dashboard, deploy stack, tenant hierarchy, rollout pipeline, incident replay, design partner docs |
+| v0.7.0  | Org policy engine: validate/clamp, `step_denied` metric |
+| v0.6.0  | LLM integration adapter: `step()` context manager |
+| v0.5.0  | Grafana dashboard: metrics exporter, docker-compose |
+
+Single-org deployment. No federation, no cross-org, no multi-tenant SaaS.
 
 ---
 
 ## Docs
 
-- [PolicyConfig specification](docs/policy-config.md) — the Planner/Executor contract
+- [Onboarding guide](docs/onboarding.md) -- your first 30 minutes
+- [PolicyConfig specification](docs/policy-config.md)
+- [Deployment guide](docs/deploy.md)
+- [Deployment checklist](docs/deployment-checklist.md)
+- [Key management](docs/key-management.md)
+- [Architecture](docs/architecture.md)
+- [Observability](docs/observability.md)
+- Runbooks: [policy rollout](docs/runbooks/policy-rollout.md), [incident response](docs/runbooks/incident-response.md), [tenant onboarding](docs/runbooks/tenant-onboarding.md)
+- [CHANGELOG](CHANGELOG.md)
+
+---
+
+## Roadmap
+
+Near-term (control plane hardening):
+- External design partner deployment
+- TriMemory kernel integration
+- Multi-agent workload validation
+
+Future (not started):
+- Federation / cross-org policy coordination
+- Multi-tenant SaaS mode
 
 ---
 

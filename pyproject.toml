@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "veronica"
+name = "veronica-cp"
 version = "0.8.0"
 description = "LLM governance control plane. Policy authoring, simulation, rollout pipelines, tenant hierarchy, and audit dashboards built on veronica-core."
 readme = "README.md"

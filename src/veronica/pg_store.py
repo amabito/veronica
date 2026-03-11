@@ -2,9 +2,9 @@
 """PostgreSQL-backed StoreProtocol implementation for VERONICA OS.
 
 Requires the 'postgres' optional-dependency group:
-    pip install veronica[postgres]
+    pip install veronica-cp[postgres]
     # or
-    uv add veronica[postgres]
+    uv add veronica-cp[postgres]
 
 Environment variable:
     VERONICA_DATABASE_URL -- psycopg connection string, e.g.
@@ -118,7 +118,7 @@ class PgStore:
         if _pool_cls is None:
             raise ImportError(
                 "PgStore requires psycopg_pool. "
-                "Install with: pip install veronica[postgres]"
+                "Install with: pip install veronica-cp[postgres]"
             )
 
         self._pool: Any = _pool_cls(

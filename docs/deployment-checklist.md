@@ -36,7 +36,7 @@ Complete all items before routing live traffic.
 
 ## 3. Observability
 
-- [ ] `pip install veronica[metrics]` installed (metrics extra)
+- [ ] `pip install veronica-cp[metrics]` installed (metrics extra)
 - [ ] `GET http://127.0.0.1:9464/metrics` returns Prometheus-formatted output
 - [ ] Prometheus scraping `9464/metrics` -- verify in Prometheus Targets UI (`/targets`)
 - [ ] Grafana dashboard loads and shows data (open `http://127.0.0.1:3000`)

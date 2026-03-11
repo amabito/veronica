@@ -23,7 +23,7 @@ Your Application
        |
   veronica-core    -- enforcement kernel (pip install veronica-core)
        |
-  veronica         -- control plane (this repo)
+  veronica-cp      -- control plane (pip install veronica-cp)
        |
   LLM Providers
 ```
@@ -41,6 +41,27 @@ Your Application
 - **HMAC-signed bundles** -- immutable policy distribution with integrity verification
 - **PostgreSQL backend** -- persistent event store (in-memory default for dev)
 - **Prometheus metrics** -- `veronica_decisions_total`, `veronica_cost_usd_total`, etc.
+
+---
+
+## Install
+
+```bash
+pip install veronica-cp
+```
+
+Optional extras:
+
+```bash
+pip install veronica-cp[postgres]   # PostgreSQL event store
+pip install veronica-cp[redis]      # distributed budget (Redis Arbiter)
+pip install veronica-cp[metrics]    # Prometheus metrics exporter
+```
+
+> **`pip install veronica` is a different, unrelated package on PyPI.**
+> This project's PyPI distribution is `veronica-cp`. The Python import remains `import veronica`.
+> Do not install both `veronica` (PyPI) and `veronica-cp` in the same environment --
+> they share the `veronica` import namespace and will conflict.
 
 ---
 
@@ -79,7 +100,7 @@ curl -X POST http://localhost:8000/simulate \
 ### Embedded Python (for kernel-level integration)
 
 ```bash
-pip install veronica[metrics]
+pip install veronica-cp[metrics]
 ```
 
 ```python

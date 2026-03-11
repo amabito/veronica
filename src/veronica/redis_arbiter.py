@@ -58,7 +58,7 @@ class RedisArbiter:
         except ImportError as e:
             raise ImportError(
                 "redis package required for RedisArbiter. "
-                "Install with: pip install veronica[redis]"
+                "Install with: pip install veronica-cp[redis]"
             ) from e
 
         self._redis = redis_lib.Redis.from_url(redis_url, decode_responses=True)

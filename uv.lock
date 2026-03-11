@@ -1055,7 +1055,16 @@ wheels = [
 ]
 
 [[package]]
-name = "veronica"
+name = "veronica-core"
+version = "3.4.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f9/01/9b8d45f405c83db8c3c6c3e793b87330a75cc5f4afa9202eab21f8032966/veronica_core-3.4.2.tar.gz", hash = "sha256:56eeb507bd3a39cf7b30ec14dc24396ccb4201217ca84f272c2a5e97bdd5523f", size = 257223, upload-time = "2026-03-08T14:00:35.522Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f2/0a/162d49353c53522f659f39ce8affd9be028db48cf657b582ad3fa87e5b93/veronica_core-3.4.2-py3-none-any.whl", hash = "sha256:cc4a830417e4f104d1725b1a6039ce133be9788c82b1943941879e3fecbbc800", size = 336658, upload-time = "2026-03-08T14:00:34.076Z" },
+]
+
+[[package]]
+name = "veronica-cp"
 version = "0.8.0"
 source = { editable = "." }
 dependencies = [
@@ -1099,15 +1108,6 @@ requires-dist = [
     { name = "veronica-core", specifier = ">=3.4.0,<4" },
 ]
 provides-extras = ["dev", "postgres", "redis", "metrics"]
-
-[[package]]
-name = "veronica-core"
-version = "3.4.2"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/f9/01/9b8d45f405c83db8c3c6c3e793b87330a75cc5f4afa9202eab21f8032966/veronica_core-3.4.2.tar.gz", hash = "sha256:56eeb507bd3a39cf7b30ec14dc24396ccb4201217ca84f272c2a5e97bdd5523f", size = 257223, upload-time = "2026-03-08T14:00:35.522Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/f2/0a/162d49353c53522f659f39ce8affd9be028db48cf657b582ad3fa87e5b93/veronica_core-3.4.2-py3-none-any.whl", hash = "sha256:cc4a830417e4f104d1725b1a6039ce133be9788c82b1943941879e3fecbbc800", size = 336658, upload-time = "2026-03-08T14:00:34.076Z" },
-]
 
 [[package]]
 name = "watchfiles"

@@ -7,7 +7,7 @@ explosion (64-char hex with near-infinite unique values). It is available
 in log messages and events only.
 
 Requires the optional [metrics] extra:
-  pip install veronica[metrics]
+  pip install veronica-cp[metrics]
 
 Usage::
 

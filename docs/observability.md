@@ -219,9 +219,9 @@ python app.py 2>&1 | grep veronica.events | jq '.stage_time_ms | to_entries | so
 
 | Feature | Required Package | Install |
 |---------|-----------------|---------|
-| MetricsSubscriber | `prometheus-client` | `pip install veronica[metrics]` |
+| MetricsSubscriber | `prometheus-client` | `pip install veronica-cp[metrics]` |
 | StructuredLogSubscriber | -- (stdlib logging) | included |
-| start_metrics_server | `prometheus-client` | `pip install veronica[metrics]` |
+| start_metrics_server | `prometheus-client` | `pip install veronica-cp[metrics]` |
 | Dashboard | Docker, Docker Compose | `cd deploy/ && docker compose up` |
 
 `prometheus-client` is optional. All Prometheus features degrade gracefully when absent.

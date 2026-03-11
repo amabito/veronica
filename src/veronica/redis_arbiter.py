@@ -109,8 +109,12 @@ class RedisArbiter:
         actual_cost_usd: float,
     ) -> None:
         """Settle reservation: refund surplus or deduct extra."""
+        import math
+
         remaining_key = f"veronica:{self._scope}:budget:remaining"
         alloc_key = f"veronica:{self._scope}:alloc:{request_id}:{step_id}"
+        if not math.isfinite(actual_cost_usd):
+            actual_cost_usd = 0.0
         actual_micro = _to_micro(actual_cost_usd)
 
         try:

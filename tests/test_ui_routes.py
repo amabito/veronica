@@ -10,15 +10,17 @@ from veronica.api.app import create_app
 
 
 @pytest.fixture(scope="module")
-def client() -> TestClient:
+def client():
     app = create_app()
-    return TestClient(app, follow_redirects=True)
+    with TestClient(app, follow_redirects=True) as c:
+        yield c
 
 
 @pytest.fixture(scope="module")
-def client_no_redirect() -> TestClient:
+def client_no_redirect():
     app = create_app()
-    return TestClient(app, follow_redirects=False)
+    with TestClient(app, follow_redirects=False) as c:
+        yield c
 
 
 class TestRootRedirect:

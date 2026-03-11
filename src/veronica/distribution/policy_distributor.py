@@ -98,7 +98,7 @@ class PolicyDistributor:
             self._version += 1
             return self._version
 
-    def _validate(self, policy: PolicyConfig) -> None:
+    def validate(self, policy: PolicyConfig) -> None:
         """Validate PolicyConfig fields. Raises PolicyValidationError on failure."""
         if not math.isfinite(policy.ceiling_usd):
             raise PolicyValidationError(
@@ -163,7 +163,7 @@ class PolicyDistributor:
         Raises:
             PolicyValidationError: If the policy fails validation.
         """
-        self._validate(policy)
+        self.validate(policy)
         policy_hash = compute_policy_hash(policy)
         exec_config = policy.to_exec_config()
         version = self._next_version()

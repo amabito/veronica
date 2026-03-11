@@ -1,13 +1,9 @@
 from __future__ import annotations
 
-import os
-
 import pytest
 from fastapi.testclient import TestClient
 
-os.environ.setdefault("VERONICA_AUTH_DISABLED", "1")
-
-from veronica.api.app import create_app  # noqa: E402
+from veronica.api.app import create_app
 
 
 @pytest.fixture()

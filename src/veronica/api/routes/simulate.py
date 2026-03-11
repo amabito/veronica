@@ -226,7 +226,7 @@ async def simulate(request: Request, body: SimulateRequest) -> SimulateResponse:
     # Validate via distributor (read-only) but compute hash without
     # incrementing the distributor's monotonic version counter.
     try:
-        distributor._validate(policy)
+        distributor.validate(policy)
     except (PolicyValidationError, TypeError, ValueError) as exc:
         logger.warning("[simulate] policy validation error: %s", exc)
         raise HTTPException(

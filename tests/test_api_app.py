@@ -10,9 +10,10 @@ from veronica.api.app import create_app
 
 
 @pytest.fixture()
-def client() -> TestClient:
+def client():
     app = create_app()
-    return TestClient(app, raise_server_exceptions=False)
+    with TestClient(app, raise_server_exceptions=False) as c:
+        yield c
 
 
 class TestAppFactory:

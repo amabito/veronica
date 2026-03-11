@@ -219,7 +219,7 @@ class ReplayEngine:
         if request.override_policy is not None:
             try:
                 override_policy = _build_override_policy(request.override_policy)
-                self._distributor._validate(override_policy)
+                self._distributor.validate(override_policy)
             except (ValueError, PolicyValidationError) as exc:
                 raise ValueError("Invalid override_policy: validation failed") from exc
 

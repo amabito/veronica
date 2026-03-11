@@ -1,18 +1,15 @@
 from __future__ import annotations
 
-import os
 import time
 
 import pytest
 from fastapi.testclient import TestClient
 
-os.environ.setdefault("VERONICA_AUTH_DISABLED", "1")
-
-from veronica.api.app import create_app  # noqa: E402
-from veronica.tenants.models import TenantNode  # noqa: E402
-from veronica.tenants.registry import TenantRegistry  # noqa: E402
-from veronica.tenants.resolver import PolicyResolver  # noqa: E402
-from veronica.types import PolicyConfig  # noqa: E402
+from veronica.api.app import create_app
+from veronica.tenants.models import TenantNode
+from veronica.tenants.registry import TenantRegistry
+from veronica.tenants.resolver import PolicyResolver
+from veronica.types import PolicyConfig
 
 
 # ---------------------------------------------------------------------------

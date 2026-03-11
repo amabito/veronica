@@ -11,26 +11,29 @@ from veronica.api.auth import _constant_time_compare, _is_exempt
 
 
 @pytest.fixture()
-def client_with_key(monkeypatch: pytest.MonkeyPatch) -> TestClient:
+def client_with_key(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("VERONICA_API_KEY", "test-secret-key")
     app = create_app()
-    return TestClient(app, raise_server_exceptions=False)
+    with TestClient(app, raise_server_exceptions=False) as c:
+        yield c
 
 
 @pytest.fixture()
-def client_no_key(monkeypatch: pytest.MonkeyPatch) -> TestClient:
+def client_no_key(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("VERONICA_API_KEY", raising=False)
     monkeypatch.delenv("VERONICA_AUTH_DISABLED", raising=False)
     app = create_app()
-    return TestClient(app, raise_server_exceptions=False)
+    with TestClient(app, raise_server_exceptions=False) as c:
+        yield c
 
 
 @pytest.fixture()
-def client_auth_disabled(monkeypatch: pytest.MonkeyPatch) -> TestClient:
+def client_auth_disabled(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("VERONICA_API_KEY", raising=False)
     monkeypatch.setenv("VERONICA_AUTH_DISABLED", "1")
     app = create_app()
-    return TestClient(app, raise_server_exceptions=False)
+    with TestClient(app, raise_server_exceptions=False) as c:
+        yield c
 
 
 class TestExemptPaths:

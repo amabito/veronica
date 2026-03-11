@@ -297,5 +297,10 @@ autoRefresh.addEventListener('change', () => {
   }
 })();
 
+// ---- Cleanup on unload ----
+window.addEventListener('beforeunload', () => {
+  if (state.refreshTimer) clearInterval(state.refreshTimer);
+});
+
 // ---- Init ----
 fetchEvents();

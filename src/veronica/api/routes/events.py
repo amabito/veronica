@@ -150,7 +150,9 @@ async def list_events(
     bound = min(actual_total, MAX_RESULTS_CAP)
     outcomes = heapq.nlargest(bound, outcomes, key=lambda o: o.timestamp)
 
-    total = actual_total
+    # Report the capped total so offset + limit pagination stays consistent.
+    # If truncated, the client sees truncated=true and knows older events were dropped.
+    total = bound
     page = outcomes[offset : offset + limit]
 
     return EventsResponse(

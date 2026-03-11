@@ -274,12 +274,15 @@ async def simulate(request: Request, body: SimulateRequest) -> SimulateResponse:
         )
 
         if decision != "allow":
-            # Stop simulation on first non-allow decision
+            # Stop simulation on first non-allow decision.
+            # Count remaining unprocessed steps as halted so the invariant
+            # steps_allowed + steps_halted == len(body.steps) holds.
+            steps_halted += len(body.steps) - idx - 1
             break
 
     return SimulateResponse(
         policy_hash=bundle.policy_hash,
-        total_steps=len(step_results),
+        total_steps=len(body.steps),
         steps_allowed=steps_allowed,
         steps_halted=steps_halted,
         total_cost_usd=cumulative_cost,

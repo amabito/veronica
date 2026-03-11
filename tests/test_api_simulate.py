@@ -98,7 +98,9 @@ class TestSimulateBudgetEnforcement:
         steps = [_CHEAP_STEP, _CHEAP_STEP]
         resp = client.post("/simulate", json={"policy": policy, "steps": steps})
         data = resp.json()
-        assert data["total_steps"] == 1  # only 1 evaluated before halt
+        assert data["total_steps"] == 2  # total input steps (allowed + halted == total)
+        assert data["steps_halted"] == 2  # first halted + second skipped
+        assert data["steps_allowed"] == 0
 
     def test_cumulative_cost_tracked(self, client: TestClient) -> None:
         policy = {**_BASE_POLICY, "ceiling_usd": 10.0}

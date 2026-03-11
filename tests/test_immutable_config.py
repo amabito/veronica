@@ -53,6 +53,11 @@ class TestImmutableConfigMode:
         assert resp.status_code in (200, 409), (
             f"Expected 200 or 409, got {resp.status_code}"
         )
+        if resp.status_code == 409:
+            detail = resp.json().get("detail", "").lower()
+            assert "immutable" not in detail, (
+                "409 in non-immutable mode must not mention 'immutable'"
+            )
 
     def test_update_blocked_when_immutable_1(
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch

@@ -29,7 +29,7 @@ def _make_client_no_auth(monkeypatch: pytest.MonkeyPatch) -> TestClient:
 
 
 def _make_client_with_key(
-    monkeypatch: pytest.MonkeyPatch, key: str = "secure-key"
+    monkeypatch: pytest.MonkeyPatch, key: str = "secure-key-0123456789abcdef01234567"
 ) -> TestClient:
     """Client with a configured API key."""
     monkeypatch.setenv("VERONICA_API_KEY", key)
@@ -398,11 +398,10 @@ class TestMissingConfigErrorMessages:
 
             pass
 
-        client = TestClient(app, raise_server_exceptions=False)
-        client.__enter__()
-        app.state.store = StoreWithoutInterface()
-        body = client.get("/health").json()
-        # subsystem status is "unavailable" for missing interface
-        assert body["subsystems"]["store"] == "unavailable"
-        # Ensure no internal details leak
-        assert "StoreWithoutInterface" not in str(body)
+        with TestClient(app, raise_server_exceptions=False) as client:
+            app.state.store = StoreWithoutInterface()
+            body = client.get("/health").json()
+            # subsystem status is "unavailable" for missing interface
+            assert body["subsystems"]["store"] == "unavailable"
+            # Ensure no internal details leak
+            assert "StoreWithoutInterface" not in str(body)

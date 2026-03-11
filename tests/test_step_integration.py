@@ -119,17 +119,13 @@ class TestFallbackSnapshot:
         """Fallback works even when SafetyEvent import fails (monkeypatch)."""
         intent = _empty_intent()
 
+        # Patch SafetyEvent constructor to raise, simulating an API change
+        # that breaks the fallback snapshot path.
         with patch(
-            "veronica.os._make_fallback_snapshot.__module__",
-            side_effect=ImportError("mocked"),
+            "veronica_core.shield.event.SafetyEvent",
+            side_effect=TypeError("mocked API change"),
         ):
-            # We can't easily patch module-level import inside a function.
-            # Instead, patch SafetyEvent constructor to raise.
-            with patch(
-                "veronica_core.shield.event.SafetyEvent",
-                side_effect=TypeError("mocked API change"),
-            ):
-                snapshot = _make_fallback_snapshot(intent, "import_failed")
+            snapshot = _make_fallback_snapshot(intent, "import_failed")
 
         assert snapshot.chain_id == "c1"
         assert snapshot.aborted is True

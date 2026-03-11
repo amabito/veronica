@@ -222,8 +222,8 @@ class TestEventsAuth:
     def test_requires_auth_when_key_set(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("VERONICA_API_KEY", "secret")
         app = create_app()
-        c = TestClient(app, raise_server_exceptions=False)
-        resp = c.get("/events")
+        with TestClient(app, raise_server_exceptions=False) as c:
+            resp = c.get("/events")
         assert resp.status_code == 401
 
     def test_passes_with_correct_key(self, monkeypatch: pytest.MonkeyPatch) -> None:

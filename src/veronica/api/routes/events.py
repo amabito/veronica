@@ -141,16 +141,16 @@ async def list_events(
                 detail="policy_hash must be a 64-character lowercase hex string",
             )
         outcomes = [o for o in outcomes if o.policy_hash == policy_hash]
-    if since is not None:
-        if not math.isfinite(since):
-            raise HTTPException(status_code=400, detail="since must be a finite number")
-        outcomes = [o for o in outcomes if o.timestamp >= since]
-    if until is not None:
-        if not math.isfinite(until):
-            raise HTTPException(status_code=400, detail="until must be a finite number")
-        outcomes = [o for o in outcomes if o.timestamp <= until]
+    if since is not None and not math.isfinite(since):
+        raise HTTPException(status_code=400, detail="since must be a finite number")
+    if until is not None and not math.isfinite(until):
+        raise HTTPException(status_code=400, detail="until must be a finite number")
     if since is not None and until is not None and since > until:
         raise HTTPException(status_code=400, detail="since must be <= until")
+    if since is not None:
+        outcomes = [o for o in outcomes if o.timestamp >= since]
+    if until is not None:
+        outcomes = [o for o in outcomes if o.timestamp <= until]
 
     # Bounded selection: O(N) heap selection instead of O(N log N) full sort.
     # Caps memory before sorting to prevent DoS via unbounded in-memory sort.

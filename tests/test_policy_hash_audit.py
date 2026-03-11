@@ -201,6 +201,7 @@ class TestAuditHashChainIntegrity:
             handle = vos.before_step(_intent(step_id=f"s{i}", request_id=f"r{i}"))
             vos.after_step(handle, _snapshot())
 
+
         threads = [threading.Thread(target=run_step, args=(i,)) for i in range(10)]
         for t in threads:
             t.start()

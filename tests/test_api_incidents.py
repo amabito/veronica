@@ -23,7 +23,7 @@ def _make_outcome(**kwargs: object) -> CPStepOutcome:
         "cost_usd": 0.001,
         "tokens": 100,
         "duration_ms": 50.0,
-        "policy_hash": "abc123",
+        "policy_hash": "a" * 64,
         "audit_id": "audit-1",
         "timestamp": time.time(),
     }

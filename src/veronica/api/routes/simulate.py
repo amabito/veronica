@@ -90,7 +90,10 @@ def _build_policy(policy_dict: dict) -> PolicyConfig:
                 detail="expires_at must be a finite non-negative number",
             )
 
-    chain_id_str = str(policy_dict["chain_id"])[:256]
+    raw_chain_id = policy_dict["chain_id"]
+    if not isinstance(raw_chain_id, str):
+        raise HTTPException(status_code=422, detail="chain_id must be a string")
+    chain_id_str = raw_chain_id[:256]
     if not chain_id_str:
         raise HTTPException(status_code=422, detail="chain_id must be non-empty")
 

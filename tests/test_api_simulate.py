@@ -121,8 +121,10 @@ class TestSimulateBudgetEnforcement:
         steps = [_CHEAP_STEP, _CHEAP_STEP]
         resp = client.post("/simulate", json={"policy": policy, "steps": steps})
         data = resp.json()
-        # First step passes (step count = 1 = ceiling), second is blocked
-        assert data["total_steps"] <= 2
+        # ceiling_steps=1: first step passes, second is blocked by the ceiling
+        assert data["steps_allowed"] == 1
+        assert data["steps_halted"] == 1
+        assert data["final_decision"] == "halt"
 
 
 class TestSimulateStepResults:
@@ -190,7 +192,7 @@ class TestSimulateValidation:
 
 
 class TestSimulateSideEffects:
-    def test_store_not_modified(self, client: TestClient) -> None:
+    def test_store_not_modified(self) -> None:
         """Simulation must not write to the event store."""
         app = create_app()
         with TestClient(app) as c:

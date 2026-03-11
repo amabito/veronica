@@ -279,8 +279,8 @@ async function simulatePolicy() {
 
     const stepRows = (data.step_results || []).map((s, i) =>
       `<tr>
-        <td>${s.step_index}</td>
-        <td>${s.kind || '--'}</td>
+        <td>${escHtml(String(s.step_index))}</td>
+        <td>${escHtml(s.kind || '--')}</td>
         <td>$${(s.cost_usd || 0).toFixed(4)}</td>
         <td>${decisionBadgeSimulate(s.decision)}</td>
         <td style="font-size:11px;color:var(--text-muted)">${escHtml(s.reason || '')}</td>

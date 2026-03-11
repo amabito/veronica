@@ -128,21 +128,21 @@ class TestHealthDegradedWhenStoreUnavailable:
 
         pass
 
-    def _make_degraded_client(self) -> TestClient:
+    @pytest.fixture()
+    def degraded_client(self):
         """App with a store that lacks the expected interface."""
         app = create_app()
-        client = TestClient(app, raise_server_exceptions=False)
-        client.__enter__()
-        app.state.store = self._StoreWithoutInterface()
-        return client
+        with TestClient(app, raise_server_exceptions=False) as client:
+            app.state.store = self._StoreWithoutInterface()
+            yield client
 
-    def _make_missing_store_client(self) -> TestClient:
+    @pytest.fixture()
+    def missing_store_client(self):
         """App with state.store explicitly set to None."""
         app = create_app()
-        client = TestClient(app, raise_server_exceptions=False)
-        client.__enter__()
-        app.state.store = None
-        return client
+        with TestClient(app, raise_server_exceptions=False) as client:
+            app.state.store = None
+            yield client
 
     def test_healthy_store_returns_ok(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Normal app with MemoryStore must return status='ok'."""
@@ -153,23 +153,22 @@ class TestHealthDegradedWhenStoreUnavailable:
         assert resp.status_code == 200
         assert resp.json()["status"] == "ok"
 
-    def test_broken_store_returns_degraded(self) -> None:
-        client = self._make_degraded_client()
-        resp = client.get("/health")
+    def test_broken_store_returns_degraded(self, degraded_client) -> None:
+        resp = degraded_client.get("/health")
         assert resp.status_code == 200, (
             "Health must always return 200 (never 5xx itself)"
         )
         assert resp.json()["status"] == "degraded"
 
-    def test_missing_store_returns_degraded(self) -> None:
-        client = self._make_missing_store_client()
-        resp = client.get("/health")
+    def test_missing_store_returns_degraded(self, missing_store_client) -> None:
+        resp = missing_store_client.get("/health")
         assert resp.status_code == 200
         assert resp.json()["status"] == "degraded"
 
-    def test_degraded_response_includes_subsystems_store_unavailable(self) -> None:
-        client = self._make_degraded_client()
-        resp = client.get("/health")
+    def test_degraded_response_includes_subsystems_store_unavailable(
+        self, degraded_client
+    ) -> None:
+        resp = degraded_client.get("/health")
         body = resp.json()
         assert "subsystems" in body
         assert body["subsystems"]["store"] == "unavailable"
@@ -185,10 +184,9 @@ class TestHealthDegradedWhenStoreUnavailable:
         assert "subsystems" in body
         assert body["subsystems"]["store"] == "ok"
 
-    def test_degraded_still_returns_version(self) -> None:
+    def test_degraded_still_returns_version(self, degraded_client) -> None:
         """Even in degraded mode the version fields must be present -- used by monitoring."""
-        client = self._make_degraded_client()
-        body = client.get("/health").json()
+        body = degraded_client.get("/health").json()
         assert "version" in body
         assert "kernel_version" in body
         assert "uptime_seconds" in body

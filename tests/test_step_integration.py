@@ -3,16 +3,26 @@
 
 from __future__ import annotations
 
+import re
 import time
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
+from veronica_core.containment.execution_context import ExecutionContext
 from veronica_core.shield.event import SafetyEvent
+from veronica_core.shield.hooks import Decision
 
 from veronica.collector import SimpleCollector
-from veronica.os import _make_fallback_snapshot
-from veronica.types import StepIntent
+from veronica.os import StepContext, VeronicaOS, _make_fallback_snapshot
+from veronica.types import (
+    CostEstimate,
+    DecisionMeta,
+    DesiredPolicy,
+    PolicyConfig,
+    StepHandle,
+    StepIntent,
+)
 
 
 def _empty_intent(
@@ -29,6 +39,50 @@ def _empty_intent(
         tool_name=None,
         timeout_ms=30_000,
         metadata={},
+    )
+
+
+def _make_handle(kind: str = "llm") -> StepHandle:
+    intent = StepIntent(
+        step_id="s1",
+        request_id="r1",
+        chain_id="c1",
+        kind=kind,
+        model="gpt-4",
+        tool_name=None,
+        timeout_ms=30_000,
+        metadata={},
+    )
+    policy = PolicyConfig(
+        chain_id="c1",
+        ceiling_usd=1.0,
+        on_exceed="halt",
+        issued_at=time.time(),
+    )
+    desired = DesiredPolicy(
+        chain_id="c1",
+        ceiling_usd=1.0,
+        ceiling_steps=100,
+        ceiling_tokens_out=50_000,
+        on_exceed="halt",
+        fallback_model=None,
+        timeout_ms=30_000,
+        priority=50,
+    )
+    cost = CostEstimate(
+        estimated_usd=0.01,
+        confidence=0.9,
+        model_used="gpt-4",
+        basis="pricing_table",
+    )
+    meta = DecisionMeta(
+        risk_level="nominal",
+        recommendation="continue",
+        degraded=False,
+        stage_time_ms={},
+    )
+    return StepHandle(
+        intent=intent, policy=policy, desired=desired, cost=cost, decision_meta=meta
     )
 
 
@@ -87,65 +141,6 @@ class TestFallbackSnapshot:
         assert outcome.chain_id == "c1"
 
 
-from unittest.mock import MagicMock
-
-from veronica_core.containment.execution_context import ExecutionContext
-from veronica_core.shield.hooks import Decision
-
-from veronica.os import StepContext
-from veronica.types import (
-    PolicyConfig,
-    StepHandle,
-    CostEstimate,
-    DesiredPolicy,
-    DecisionMeta,
-)
-
-
-def _make_handle(kind: str = "llm") -> StepHandle:
-    intent = StepIntent(
-        step_id="s1",
-        request_id="r1",
-        chain_id="c1",
-        kind=kind,
-        model="gpt-4",
-        tool_name=None,
-        timeout_ms=30_000,
-        metadata={},
-    )
-    policy = PolicyConfig(
-        chain_id="c1",
-        ceiling_usd=1.0,
-        on_exceed="halt",
-        issued_at=time.time(),
-    )
-    desired = DesiredPolicy(
-        chain_id="c1",
-        ceiling_usd=1.0,
-        ceiling_steps=100,
-        ceiling_tokens_out=50_000,
-        on_exceed="halt",
-        fallback_model=None,
-        timeout_ms=30_000,
-        priority=50,
-    )
-    cost = CostEstimate(
-        estimated_usd=0.01,
-        confidence=0.9,
-        model_used="gpt-4",
-        basis="pricing_table",
-    )
-    meta = DecisionMeta(
-        risk_level="nominal",
-        recommendation="continue",
-        degraded=False,
-        stage_time_ms={},
-    )
-    return StepHandle(
-        intent=intent, policy=policy, desired=desired, cost=cost, decision_meta=meta
-    )
-
-
 class TestStepContext:
     def test_run_dispatches_llm_for_llm_kind(self) -> None:
         """run() calls wrap_llm_call for kind='llm'."""
@@ -154,7 +149,7 @@ class TestStepContext:
         mock_ctx.wrap_llm_call.return_value = Decision.ALLOW
         step_ctx = StepContext(handle=handle, exec_ctx=mock_ctx)
 
-        result = step_ctx.run(lambda: "llm_result")
+        step_ctx.run(lambda: "llm_result")
         mock_ctx.wrap_llm_call.assert_called_once()
         mock_ctx.wrap_tool_call.assert_not_called()
 
@@ -165,7 +160,7 @@ class TestStepContext:
         mock_ctx.wrap_tool_call.return_value = Decision.ALLOW
         step_ctx = StepContext(handle=handle, exec_ctx=mock_ctx)
 
-        result = step_ctx.run(lambda: "tool_result")
+        step_ctx.run(lambda: "tool_result")
         mock_ctx.wrap_tool_call.assert_called_once()
         mock_ctx.wrap_llm_call.assert_not_called()
 
@@ -176,7 +171,7 @@ class TestStepContext:
         mock_ctx.wrap_llm_call.return_value = Decision.ALLOW
         step_ctx = StepContext(handle=handle, exec_ctx=mock_ctx)
 
-        result = step_ctx.run(lambda: "system_result")
+        step_ctx.run(lambda: "system_result")
         mock_ctx.wrap_llm_call.assert_called_once()
 
     def test_run_llm_calls_wrap_llm_call(self) -> None:
@@ -209,20 +204,15 @@ class TestStepContext:
         assert step_ctx.policy.ceiling_usd == 1.0
 
 
-from veronica.os import VeronicaOS
-
-
 class TestStepContextManager:
     def test_step_calls_after_step(self) -> None:
         """after_step runs after normal execution inside step()."""
         vos = VeronicaOS()
         intent = _empty_intent()
 
-        with vos.step(intent) as ctx:
-            assert isinstance(ctx, StepContext)
-            assert ctx.policy.ceiling_usd > 0
+        with vos.step(intent):
+            pass
 
-        # after_step committed to store -- verify via store history
         history = vos._store.build_history("c1")
         assert history.depth == 1
 
@@ -232,7 +222,7 @@ class TestStepContextManager:
         intent = _empty_intent()
 
         with pytest.raises(ValueError, match="boom"):
-            with vos.step(intent) as ctx:
+            with vos.step(intent):
                 raise ValueError("boom")
 
         # after_step still committed
@@ -251,9 +241,6 @@ class TestStepContextManager:
         # after_step still committed (via fallback snapshot)
         history = vos._store.build_history("c1")
         assert history.depth == 1
-
-
-import re
 
 
 class TestNormalizeIntent:

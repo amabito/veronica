@@ -3,12 +3,21 @@
 
 from __future__ import annotations
 
+import threading
+from datetime import datetime, timezone
 
 import fakeredis
 import pytest
 
+from veronica_core.containment.execution_context import ContextSnapshot, NodeRecord
+
+from veronica.adaptive_planner import AdaptivePlanner
+from veronica.file_store import FileStore
+from veronica.history_analyzer import HistoryAnalyzer
+from veronica.os import VeronicaOS
 from veronica.redis_arbiter import RedisArbiter, _from_micro, _to_micro
-from veronica.types import DesiredPolicy
+from veronica.regression_cost_model import RegressionCostModel
+from veronica.types import DesiredPolicy, StepIntent
 
 
 def _desire(
@@ -153,9 +162,6 @@ class TestSettle:
         assert arbiter._redis.get("veronica:test:alloc:r1:s1") is None
 
 
-import threading
-
-
 class TestAtomicity:
     def test_concurrent_reserve(self, arbiter: RedisArbiter) -> None:
         """10 threads each reserve 10 USD from 100 USD budget.
@@ -219,18 +225,6 @@ class TestAtomicity:
         # 50 + 5*(10-8) = 50 + 10 = 60
         remaining = int(arbiter._redis.get("veronica:test:budget:remaining"))
         assert remaining == _to_micro(60.0)
-
-
-from datetime import datetime, timezone
-
-from veronica_core.containment.execution_context import ContextSnapshot, NodeRecord
-
-from veronica.adaptive_planner import AdaptivePlanner
-from veronica.file_store import FileStore
-from veronica.history_analyzer import HistoryAnalyzer
-from veronica.os import VeronicaOS
-from veronica.regression_cost_model import RegressionCostModel
-from veronica.types import StepIntent
 
 
 def _intent(

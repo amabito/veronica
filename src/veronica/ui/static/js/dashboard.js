@@ -165,14 +165,14 @@ function saveApiKey() {
 
 document.addEventListener('DOMContentLoaded', () => {
   const key = getApiKey();
+  let refreshTimer = null;
   if (!key) {
     showApiKeyModal();
   } else {
     fetchData();
-    setInterval(fetchData, 5000);
+    refreshTimer = setInterval(fetchData, 5000);
   }
 
-  let refreshTimer = null;
   const saveBtn = document.getElementById('apikey-save');
   if (saveBtn) {
     saveBtn.addEventListener('click', () => {

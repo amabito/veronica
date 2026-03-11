@@ -221,7 +221,7 @@ function renderTimeline(items, rootCause) {
           <span>Cost: <b>${formatCost(item.cost_usd)}</b></span>
           <span>Tokens: <b>${(item.tokens || 0).toLocaleString()}</b></span>
           <span>Duration: <b>${formatDuration(item.duration_ms)}</b></span>
-          <span>Policy: <b class="mono" title="${escHtml(item.policy_hash || '')}">${(item.policy_hash || '--').slice(0, 8)}</b></span>
+          <span>Policy: <b class="mono" title="${escHtml(item.policy_hash || '')}">${escHtml((item.policy_hash || '--').slice(0, 8))}</b></span>
         </div>
       </div>
     </div>`;

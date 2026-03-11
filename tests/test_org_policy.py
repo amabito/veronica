@@ -4,13 +4,20 @@
 from __future__ import annotations
 
 import logging
+import threading
 import time
+from unittest.mock import MagicMock
 
 import pytest
+from prometheus_client import CollectorRegistry
 
+from veronica.buffered_emitter import BufferedEmitter
+from veronica.metrics_subscriber import MetricsSubscriber
+from veronica.os import OrgPolicyDenied, VeronicaOS
 from veronica.types import (
     DesiredPolicy,
     OrgPolicy,
+    PolicyConfig,
     StepIntent,
 )
 
@@ -116,12 +123,6 @@ class TestOrgPolicyClamp:
 # ---------------------------------------------------------------------------
 # Task 2: OrgPolicyDenied + StepContext._check_denial
 # ---------------------------------------------------------------------------
-from unittest.mock import MagicMock
-
-from veronica.os import OrgPolicyDenied, VeronicaOS
-from veronica.types import (
-    PolicyConfig,
-)
 
 
 class TestOrgPolicyDenied:
@@ -158,7 +159,6 @@ class TestOrgPolicyDenied:
 # ---------------------------------------------------------------------------
 # Task 3: VeronicaOS.before_step() integration (validate + clamp + emit)
 # ---------------------------------------------------------------------------
-from veronica.buffered_emitter import BufferedEmitter
 
 
 class TestOrgPolicyIntegration:
@@ -244,9 +244,6 @@ class TestOrgPolicyIntegration:
 class TestOrgPolicyMetrics:
     def test_denied_total_metric(self) -> None:
         """MetricsSubscriber increments veronica_denied_total on step_denied."""
-        from prometheus_client import CollectorRegistry
-        from veronica.metrics_subscriber import MetricsSubscriber
-
         registry = CollectorRegistry()
         subscriber = MetricsSubscriber(registry=registry)
 
@@ -267,9 +264,6 @@ class TestOrgPolicyMetrics:
 
     def test_denied_total_unknown_kind(self) -> None:
         """Missing kind defaults to 'unknown'."""
-        from prometheus_client import CollectorRegistry
-        from veronica.metrics_subscriber import MetricsSubscriber
-
         registry = CollectorRegistry()
         subscriber = MetricsSubscriber(registry=registry)
 
@@ -285,7 +279,6 @@ class TestOrgPolicyMetrics:
 # ---------------------------------------------------------------------------
 # Adversarial / boundary / type-variation / breaking tests
 # ---------------------------------------------------------------------------
-import threading
 
 
 class TestOrgPolicyBoundaryValues:

@@ -10,13 +10,17 @@ from datetime import datetime, timezone
 
 from veronica_core.containment.execution_context import ContextSnapshot, NodeRecord
 
+from prometheus_client import CollectorRegistry, Counter, Histogram
+
 from veronica.adaptive_planner import AdaptivePlanner
 from veronica.buffered_emitter import BufferedEmitter
 from veronica.file_store import FileStore
 from veronica.history_analyzer import HistoryAnalyzer
+from veronica.metrics_subscriber import MetricsSubscriber
 from veronica.os import VeronicaOS
 from veronica.proportional_arbiter import ProportionalArbiter
 from veronica.regression_cost_model import RegressionCostModel
+from veronica.structured_log_subscriber import StructuredLogSubscriber
 from veronica.types import StepIntent
 
 
@@ -193,15 +197,10 @@ class TestPayload:
         assert payload["chain_id"] == "c7"
 
 
-from prometheus_client import CollectorRegistry
-from veronica.metrics_subscriber import MetricsSubscriber
-
-
 def _metrics(prefix="test") -> tuple[MetricsSubscriber, CollectorRegistry]:
     """MetricsSubscriber with isolated registry."""
     registry = CollectorRegistry()
     ms = MetricsSubscriber.__new__(MetricsSubscriber)
-    from prometheus_client import Counter, Histogram
 
     ms.steps_total = Counter(
         f"{prefix}_steps_total",
@@ -347,9 +346,6 @@ class TestMetricsSubscriber:
         # Both instances share identical metric objects
         assert ms1.steps_total is ms2.steps_total
         assert ms1.cost_total is ms2.cost_total
-
-
-from veronica.structured_log_subscriber import StructuredLogSubscriber
 
 
 class TestStructuredLogSubscriber:

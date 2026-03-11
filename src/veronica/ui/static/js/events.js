@@ -156,8 +156,8 @@ function renderRows(items) {
       <td class="td-reason" title="${reasonCode}">${truncate(reasonCode, 20)}</td>
       <td class="td-cost">${formatCost(e.cost_usd)}</td>
       <td class="td-tokens">${(e.tokens || 0).toLocaleString()}</td>
-      <td class="td-hash mono" title="${escHtml(e.policy_hash || '')}">${truncate(e.policy_hash, 8)}</td>
-      <td class="td-hash mono" title="${escHtml(e.audit_id || '')}">${truncate(e.audit_id, 8)}</td>
+      <td class="td-hash mono" title="${escHtml(e.policy_hash || '')}">${escHtml(truncate(e.policy_hash, 8))}</td>
+      <td class="td-hash mono" title="${escHtml(e.audit_id || '')}">${escHtml(truncate(e.audit_id, 8))}</td>
     </tr>`;
   }).join('');
 

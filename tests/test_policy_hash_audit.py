@@ -184,7 +184,7 @@ class TestAuditHashChainIntegrity:
         emitter = BufferedEmitter()
         vos = VeronicaOS(emitter=emitter, org_policy=org)
 
-        handle = vos.before_step(_intent(kind="llm"))
+        vos.before_step(_intent(kind="llm"))
         # Denied -- after_step not reached, but before_step emits step_denied
 
         events = emitter.snapshot()
@@ -197,9 +197,6 @@ class TestAuditHashChainIntegrity:
         """Concurrent after_step calls produce unique audit_ids."""
         emitter = BufferedEmitter()
         vos = VeronicaOS(emitter=emitter)
-        results: list[str] = []
-        lock = threading.Lock()
-
         def run_step(i: int) -> None:
             handle = vos.before_step(_intent(step_id=f"s{i}", request_id=f"r{i}"))
             vos.after_step(handle, _snapshot())

@@ -15,7 +15,7 @@ from veronica.types import PolicyConfig
 @pytest.fixture()
 def client():
     app = create_app()
-    with TestClient(app, raise_server_exceptions=True) as c:
+    with TestClient(app, raise_server_exceptions=False) as c:
         yield c
 
 
@@ -50,8 +50,9 @@ class TestImmutableConfigMode:
             "/policies/chain-a",
             json={"current_version": 1, "ceiling_usd": 2.0},
         )
-        # 200 or 409 are both "not 403"
-        assert resp.status_code != 403
+        assert resp.status_code in (200, 409), (
+            f"Expected 200 or 409, got {resp.status_code}"
+        )
 
     def test_update_blocked_when_immutable_1(
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
@@ -104,7 +105,9 @@ class TestImmutableConfigMode:
             "/policies/chain-a",
             json={"current_version": 1, "ceiling_usd": 2.0},
         )
-        assert resp.status_code != 403
+        assert resp.status_code in (200, 409), (
+            f"Expected 200 or 409, got {resp.status_code}"
+        )
 
     def test_update_allowed_when_immutable_0(
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
@@ -117,7 +120,9 @@ class TestImmutableConfigMode:
             "/policies/chain-a",
             json={"current_version": 1, "ceiling_usd": 2.0},
         )
-        assert resp.status_code != 403
+        assert resp.status_code in (200, 409), (
+            f"Expected 200 or 409, got {resp.status_code}"
+        )
 
     def test_health_reports_immutable_config_true(
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch

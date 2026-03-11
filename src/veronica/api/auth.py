@@ -28,7 +28,7 @@ _ENV_AUTH_DISABLED = "VERONICA_AUTH_DISABLED"
 
 # Paths that bypass auth -- exact matches only, plus prefix matches
 _EXEMPT_EXACT = frozenset({"/health", "/docs", "/openapi.json", "/redoc"})
-_EXEMPT_PREFIXES = ("/docs/", "/ui/")  # swagger assets + UI pages
+_EXEMPT_PREFIXES = ("/docs/", "/redoc/", "/ui/")  # swagger assets + UI pages
 
 _api_key_header = APIKeyHeader(name=_HEADER_NAME, auto_error=False)
 

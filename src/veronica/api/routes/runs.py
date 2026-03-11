@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import heapq
+import math
 import time as _time
 from typing import Annotated
 
@@ -52,7 +53,9 @@ async def get_run(
             status_code=404, detail=f"No events found for chain_id: {chain_id!r}"
         )
 
-    total_cost = sum(o.cost_usd for o in chain_outcomes)
+    total_cost = sum(
+        o.cost_usd for o in chain_outcomes if math.isfinite(o.cost_usd)
+    )
     events_count = len(chain_outcomes)
 
     timestamps = [o.timestamp for o in chain_outcomes]

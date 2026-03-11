@@ -52,9 +52,11 @@ async def _lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             )
             store = MemoryStore()  # type: ignore[assignment]
         except Exception:
+            # Mask credentials before logging -- never log raw DSN
+            safe_dsn = database_url.split("@")[-1] if "@" in database_url else database_url
             logger.exception(
-                "Failed to connect to PostgreSQL (%s). Falling back to MemoryStore.",
-                database_url,
+                "Failed to connect to PostgreSQL (host: %s). Falling back to MemoryStore.",
+                safe_dsn,
             )
             store = MemoryStore()
     else:

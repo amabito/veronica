@@ -41,10 +41,11 @@ function formatCost(usd) {
 }
 
 function decisionBadge(decision) {
-  const cls = ['halt', 'degrade', 'allow', 'queue', 'retry'].includes(decision)
-    ? `badge-${decision}`
+  const d = (decision || 'unknown').toLowerCase();
+  const cls = ['halt', 'degrade', 'allow', 'queue', 'retry'].includes(d)
+    ? `badge-${d}`
     : 'badge-default';
-  return `<span class="badge ${cls}">${decision}</span>`;
+  return `<span class="badge ${cls}">${escHtml(d)}</span>`;
 }
 
 function circuitStateBadge(state) {

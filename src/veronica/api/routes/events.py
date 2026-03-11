@@ -145,11 +145,12 @@ async def list_events(
 
     # Bounded selection: O(N) heap selection instead of O(N log N) full sort.
     # Caps memory before sorting to prevent DoS via unbounded in-memory sort.
-    truncated = len(outcomes) > MAX_RESULTS_CAP
-    bound = min(len(outcomes), MAX_RESULTS_CAP)
+    actual_total = len(outcomes)
+    truncated = actual_total > MAX_RESULTS_CAP
+    bound = min(actual_total, MAX_RESULTS_CAP)
     outcomes = heapq.nlargest(bound, outcomes, key=lambda o: o.timestamp)
 
-    total = len(outcomes)
+    total = actual_total
     page = outcomes[offset : offset + limit]
 
     return EventsResponse(

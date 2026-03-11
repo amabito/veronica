@@ -123,31 +123,26 @@ class TestAuthFailClosed:
 class TestHealthDegradedWhenStoreUnavailable:
     """GET /health returns status='degraded' when the store raises or is missing."""
 
+    class _StoreWithoutInterface:
+        """Store object that lacks the build_history method entirely."""
+
+        pass
+
     def _make_degraded_client(self) -> TestClient:
-        """App with a broken store that raises on build_history."""
-
-        class BrokenStore:
-            def build_history(self, chain_id: str, limit: int = 50) -> None:
-                raise RuntimeError("Store backend unavailable")
-
+        """App with a store that lacks the expected interface."""
         app = create_app()
-
-        # Override the store after lifespan startup
-        @app.on_event("startup")
-        async def _inject_broken_store() -> None:
-            app.state.store = BrokenStore()
-
-        return TestClient(app, raise_server_exceptions=False)
+        client = TestClient(app, raise_server_exceptions=False)
+        client.__enter__()
+        app.state.store = self._StoreWithoutInterface()
+        return client
 
     def _make_missing_store_client(self) -> TestClient:
         """App with state.store explicitly set to None."""
         app = create_app()
-
-        @app.on_event("startup")
-        async def _remove_store() -> None:
-            app.state.store = None
-
-        return TestClient(app, raise_server_exceptions=False)
+        client = TestClient(app, raise_server_exceptions=False)
+        client.__enter__()
+        app.state.store = None
+        return client
 
     def test_healthy_store_returns_ok(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Normal app with MemoryStore must return status='ok'."""
@@ -400,16 +395,16 @@ class TestMissingConfigErrorMessages:
         monkeypatch.setenv("VERONICA_AUTH_DISABLED", "1")
         app = create_app()
 
-        class BrokenStore:
-            def build_history(self, chain_id: str, limit: int = 50) -> None:
-                raise RuntimeError("SECRET_DB_PASSWORD in connection string")
+        class StoreWithoutInterface:
+            """Store without build_history -- simulates corrupted/unavailable backend."""
 
-        @app.on_event("startup")
-        async def _inject() -> None:
-            app.state.store = BrokenStore()
+            pass
 
         client = TestClient(app, raise_server_exceptions=False)
+        client.__enter__()
+        app.state.store = StoreWithoutInterface()
         body = client.get("/health").json()
-        # subsystem status is "unavailable", not the raw exception message
+        # subsystem status is "unavailable" for missing interface
         assert body["subsystems"]["store"] == "unavailable"
-        assert "SECRET_DB_PASSWORD" not in str(body)
+        # Ensure no internal details leak
+        assert "StoreWithoutInterface" not in str(body)

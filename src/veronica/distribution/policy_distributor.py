@@ -83,6 +83,12 @@ class PolicyDistributor:
         self._lock = threading.Lock()
         self._version = 0
         signing_key_raw = os.environ.get("VERONICA_POLICY_SIGNING_KEY", "")
+        if signing_key_raw and len(signing_key_raw) < 32:
+            raise PolicyValidationError(
+                "VERONICA_POLICY_SIGNING_KEY must be at least 32 characters "
+                f"(got {len(signing_key_raw)}). Generate with: "
+                "python -c \"import secrets; print(secrets.token_hex(32))\""
+            )
         self._signing_key: bytes | None = (
             signing_key_raw.encode() if signing_key_raw else None
         )

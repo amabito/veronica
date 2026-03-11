@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
     environment:
-      - VERONICA_DB_URL=postgresql://${POSTGRES_USER:-veronica}:${POSTGRES_PASSWORD}@postgres:5432/veronica
+      - VERONICA_DATABASE_URL=postgresql://${POSTGRES_USER:-veronica}:${POSTGRES_PASSWORD}@postgres:5432/veronica
       - VERONICA_METRICS_PORT=9464
       - VERONICA_API_KEY=${VERONICA_API_KEY:?VERONICA_API_KEY must be set in .env}
     ports:

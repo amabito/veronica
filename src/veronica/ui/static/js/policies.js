@@ -97,10 +97,11 @@ function formatDate(ts) {
 }
 
 function decisionBadge(decision) {
-  const cls = ['halt', 'degrade', 'allow', 'queue', 'retry'].includes(decision)
-    ? `badge-${decision}`
+  const d = (decision || 'unknown').toLowerCase();
+  const cls = ['halt', 'degrade', 'allow', 'queue', 'retry'].includes(d)
+    ? `badge-${d}`
     : 'badge-default';
-  return `<span class="badge ${cls}">${decision}</span>`;
+  return `<span class="badge ${cls}">${escHtml(d)}</span>`;
 }
 
 function renderPolicyList(policies) {
@@ -110,12 +111,12 @@ function renderPolicyList(policies) {
     return;
   }
   tbody.innerHTML = policies.map(p => `
-    <tr class="policy-row" data-chain="${p.chain_id}" style="cursor:pointer;">
+    <tr class="policy-row" data-chain="${escHtml(p.chain_id)}" style="cursor:pointer;">
       <td class="mono">${escHtml(p.chain_id)}</td>
       <td>${decisionBadge(p.on_exceed)}</td>
       <td class="mono">$${(p.ceiling_usd || 0).toFixed(4)}</td>
       <td>${p.priority}</td>
-      <td><button class="btn btn-sm btn-primary" data-chain="${p.chain_id}">Edit</button></td>
+      <td><button class="btn btn-sm btn-primary" data-chain="${escHtml(p.chain_id)}">Edit</button></td>
     </tr>
   `).join('');
 
@@ -213,10 +214,11 @@ function buildUpdatePayload() {
 }
 
 function decisionBadgeSimulate(decision) {
-  const cls = ['halt', 'degrade', 'allow', 'queue', 'retry'].includes(decision)
-    ? `badge-${decision}`
+  const d = (decision || 'unknown').toLowerCase();
+  const cls = ['halt', 'degrade', 'allow', 'queue', 'retry'].includes(d)
+    ? `badge-${d}`
     : 'badge-default';
-  return `<span class="badge ${cls}">${decision}</span>`;
+  return `<span class="badge ${cls}">${escHtml(d)}</span>`;
 }
 
 async function simulatePolicy() {
@@ -295,7 +297,7 @@ async function simulatePolicy() {
     simResult.innerHTML = `
       <div class="sim-header">
         ${storeTag}
-        <span class="sim-hash">hash: <code>${(data.policy_hash || '').slice(0, 8)}</code></span>
+        <span class="sim-hash">hash: <code>${escHtml((data.policy_hash || '').slice(0, 8))}</code></span>
         <span class="sim-final">${decisionBadgeSimulate(data.final_decision)}</span>
       </div>
       ${stepsSection}

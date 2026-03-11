@@ -251,9 +251,14 @@ async def simulate(request: Request, body: SimulateRequest) -> SimulateResponse:
             policy=policy,
         )
 
-        cumulative_cost += step.cost_usd
-        cumulative_tokens_out += step.tokens_out
         final_decision = decision
+
+        if decision == "allow":
+            cumulative_cost += step.cost_usd
+            cumulative_tokens_out += step.tokens_out
+            steps_allowed += 1
+        else:
+            steps_halted += 1
 
         step_results.append(
             SimulationStepResult(
@@ -268,10 +273,7 @@ async def simulate(request: Request, body: SimulateRequest) -> SimulateResponse:
             )
         )
 
-        if decision == "allow":
-            steps_allowed += 1
-        else:
-            steps_halted += 1
+        if decision != "allow":
             # Stop simulation on first non-allow decision
             break
 

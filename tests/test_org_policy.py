@@ -1,5 +1,6 @@
 # tests/test_org_policy.py
 """Tests for Phase 7: Org Policy Engine."""
+
 from __future__ import annotations
 
 import logging
@@ -20,9 +21,14 @@ def _intent(
     kind: str = "llm",
 ) -> StepIntent:
     return StepIntent(
-        step_id="s1", request_id="r1", chain_id="c1",
-        kind=kind, model=model, tool_name=tool_name,
-        timeout_ms=30_000, metadata={},
+        step_id="s1",
+        request_id="r1",
+        chain_id="c1",
+        kind=kind,
+        model=model,
+        tool_name=tool_name,
+        timeout_ms=30_000,
+        metadata={},
     )
 
 
@@ -33,10 +39,14 @@ def _desired(
     fallback_model: str | None = None,
 ) -> DesiredPolicy:
     return DesiredPolicy(
-        chain_id="c1", ceiling_usd=ceiling_usd, ceiling_steps=100,
-        ceiling_tokens_out=50_000, on_exceed="halt",
+        chain_id="c1",
+        ceiling_usd=ceiling_usd,
+        ceiling_steps=100,
+        ceiling_tokens_out=50_000,
+        on_exceed="halt",
         fallback_model=fallback_model,
-        timeout_ms=timeout_ms, priority=priority,
+        timeout_ms=timeout_ms,
+        priority=priority,
     )
 
 
@@ -195,7 +205,9 @@ class TestOrgPolicyIntegration:
         spy_arbiter = MagicMock()
         spy_arbiter.arbitrate.return_value = {
             "c1": PolicyConfig(
-                chain_id="c1", ceiling_usd=5.0, on_exceed="halt",
+                chain_id="c1",
+                ceiling_usd=5.0,
+                on_exceed="halt",
                 issued_at=time.time(),
             ),
         }
@@ -238,11 +250,14 @@ class TestOrgPolicyMetrics:
         registry = CollectorRegistry()
         subscriber = MetricsSubscriber(registry=registry)
 
-        subscriber("step_denied", {
-            "kind": "llm",
-            "reason": "model blocked",
-            "model": "gpt-4",
-        })
+        subscriber(
+            "step_denied",
+            {
+                "kind": "llm",
+                "reason": "model blocked",
+                "model": "gpt-4",
+            },
+        )
 
         value = registry.get_sample_value(
             "veronica_denied_total",
@@ -331,8 +346,10 @@ class TestOrgPolicyBoundaryValues:
             blocked_models=frozenset({"fallback-model"}),
         )
         desired = _desired(
-            ceiling_usd=50.0, timeout_ms=60_000,
-            priority=99, fallback_model="fallback-model",
+            ceiling_usd=50.0,
+            timeout_ms=60_000,
+            priority=99,
+            fallback_model="fallback-model",
         )
         result = policy.clamp(desired, _intent())
         assert result.ceiling_usd == 1.0
@@ -612,16 +629,19 @@ class TestOrgPolicyStructuredLog:
         old_level = logger.level
         logger.setLevel(logging.DEBUG)
         try:
-            subscriber("step_denied", {
-                "schema_version": 1,
-                "request_id": "r1",
-                "step_id": "s1",
-                "chain_id": "c1",
-                "kind": "llm",
-                "reason": "model blocked",
-                "model": "gpt-4",
-                "tool_name": None,
-            })
+            subscriber(
+                "step_denied",
+                {
+                    "schema_version": 1,
+                    "request_id": "r1",
+                    "step_id": "s1",
+                    "chain_id": "c1",
+                    "kind": "llm",
+                    "reason": "model blocked",
+                    "model": "gpt-4",
+                    "tool_name": None,
+                },
+            )
             assert len(log_records) == 1
             record = json_mod.loads(log_records[0])
             assert record["event"] == "step_denied"
@@ -706,8 +726,7 @@ class TestOrgPolicyConcurrency:
                 errors.append(e)
 
         threads = [
-            threading.Thread(target=clamp_worker, args=(float(i),))
-            for i in range(50)
+            threading.Thread(target=clamp_worker, args=(float(i),)) for i in range(50)
         ]
         for t in threads:
             t.start()

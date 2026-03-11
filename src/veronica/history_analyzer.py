@@ -1,5 +1,6 @@
 # src/veronica/history_analyzer.py
 """VERONICA OS analyzer -- HistoryAnalyzer with 6 adaptive detection patterns."""
+
 from __future__ import annotations
 
 from veronica.types import AnalysisResult, HistoryView, Signal, StepIntent, StepOutcome
@@ -39,11 +40,13 @@ class HistoryAnalyzer:
         # Pattern 1: halt_tighten
         if outcome.status in ("halted", "error", "timeout"):
             severity = "critical" if outcome.status == "halted" else "warning"
-            signals.append(Signal(
-                kind="halt_tighten",
-                severity=severity,
-                detail=f"outcome status={outcome.status}",
-            ))
+            signals.append(
+                Signal(
+                    kind="halt_tighten",
+                    severity=severity,
+                    detail=f"outcome status={outcome.status}",
+                )
+            )
             recommendations.append("tighten")
 
         # Pattern 2: clean_loosen
@@ -52,27 +55,33 @@ class HistoryAnalyzer:
             and history.success_streak >= _LOOSEN_MIN_STREAK
             and history.budget_headroom_ratio >= _LOOSEN_MIN_HEADROOM
         ):
-            signals.append(Signal(
-                kind="clean_loosen",
-                severity="info",
-                detail=f"streak={history.success_streak}, headroom={history.budget_headroom_ratio:.2f}",
-            ))
+            signals.append(
+                Signal(
+                    kind="clean_loosen",
+                    severity="info",
+                    detail=f"streak={history.success_streak}, headroom={history.budget_headroom_ratio:.2f}",
+                )
+            )
             recommendations.append("loosen")
 
         # Pattern 3: depth_guard (2-stage)
         if history.depth >= _DEPTH_HARD:
-            signals.append(Signal(
-                kind="depth_guard",
-                severity="critical",
-                detail=f"depth {history.depth} >= hard limit {_DEPTH_HARD}",
-            ))
+            signals.append(
+                Signal(
+                    kind="depth_guard",
+                    severity="critical",
+                    detail=f"depth {history.depth} >= hard limit {_DEPTH_HARD}",
+                )
+            )
             recommendations.append("halt")
         elif history.depth >= _DEPTH_SOFT:
-            signals.append(Signal(
-                kind="depth_guard",
-                severity="warning",
-                detail=f"depth {history.depth} >= soft limit {_DEPTH_SOFT}",
-            ))
+            signals.append(
+                Signal(
+                    kind="depth_guard",
+                    severity="warning",
+                    detail=f"depth {history.depth} >= soft limit {_DEPTH_SOFT}",
+                )
+            )
             recommendations.append("tighten")
 
         # Pattern 4: cost_acceleration
@@ -81,20 +90,24 @@ class HistoryAnalyzer:
             and history.cost_per_step_ema > _EPS
             and outcome.cost_usd > history.cost_per_step_ema * _COST_SPIKE_FACTOR
         ):
-            signals.append(Signal(
-                kind="cost_acceleration",
-                severity="warning",
-                detail=f"cost {outcome.cost_usd:.4f} > {_COST_SPIKE_FACTOR}x EMA {history.cost_per_step_ema:.4f}",
-            ))
+            signals.append(
+                Signal(
+                    kind="cost_acceleration",
+                    severity="warning",
+                    detail=f"cost {outcome.cost_usd:.4f} > {_COST_SPIKE_FACTOR}x EMA {history.cost_per_step_ema:.4f}",
+                )
+            )
             recommendations.append("tighten")
 
         # Pattern 5: loop_detection
         if history.loop_score >= _LOOP_THRESHOLD:
-            signals.append(Signal(
-                kind="loop_detection",
-                severity="warning",
-                detail=f"loop_score={history.loop_score:.2f}",
-            ))
+            signals.append(
+                Signal(
+                    kind="loop_detection",
+                    severity="warning",
+                    detail=f"loop_score={history.loop_score:.2f}",
+                )
+            )
             recommendations.append("tighten")
 
         # Pattern 6: latency_anomaly (info-only, no recommendation change)
@@ -102,11 +115,13 @@ class HistoryAnalyzer:
         latency_ema = history.latency_ema_ms.get(model_key)
         if latency_ema is not None and latency_ema > _EPS:
             if outcome.elapsed_ms > latency_ema * _LATENCY_SPIKE_FACTOR:
-                signals.append(Signal(
-                    kind="latency_anomaly",
-                    severity="info",
-                    detail=f"elapsed {outcome.elapsed_ms:.0f}ms > {_LATENCY_SPIKE_FACTOR}x EMA {latency_ema:.0f}ms",
-                ))
+                signals.append(
+                    Signal(
+                        kind="latency_anomaly",
+                        severity="info",
+                        detail=f"elapsed {outcome.elapsed_ms:.0f}ms > {_LATENCY_SPIKE_FACTOR}x EMA {latency_ema:.0f}ms",
+                    )
+                )
                 # No recommendation change (info-only)
 
         # Compose risk_level
@@ -118,7 +133,9 @@ class HistoryAnalyzer:
 
         # Compose recommendation (highest priority wins)
         if recommendations:
-            recommendation = max(recommendations, key=lambda r: _RECOMMENDATION_RANK.get(r, 0))
+            recommendation = max(
+                recommendations, key=lambda r: _RECOMMENDATION_RANK.get(r, 0)
+            )
         else:
             recommendation = "continue"
 

@@ -1,5 +1,6 @@
 # tests/test_phase2_integration.py
 """Integration tests -- full Phase 2 pipeline through VeronicaOS."""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -17,27 +18,46 @@ from veronica.regression_cost_model import RegressionCostModel
 from veronica.types import StepIntent
 
 
-def _intent(step_id: str = "s1", chain_id: str = "c1", model: str = "gpt-4") -> StepIntent:
+def _intent(
+    step_id: str = "s1", chain_id: str = "c1", model: str = "gpt-4"
+) -> StepIntent:
     return StepIntent(
-        step_id=step_id, request_id="r1", chain_id=chain_id,
-        kind="llm", model=model, tool_name=None,
-        timeout_ms=30_000, metadata={},
+        step_id=step_id,
+        request_id="r1",
+        chain_id=chain_id,
+        kind="llm",
+        model=model,
+        tool_name=None,
+        timeout_ms=30_000,
+        metadata={},
     )
 
 
-def _snapshot(chain_id: str = "c1", cost: float = 0.01, status: str = "ok") -> ContextSnapshot:
+def _snapshot(
+    chain_id: str = "c1", cost: float = 0.01, status: str = "ok"
+) -> ContextSnapshot:
     node = NodeRecord(
-        node_id="n1", parent_id=None, kind="llm",
+        node_id="n1",
+        parent_id=None,
+        kind="llm",
         operation_name="test_op",
         start_ts=datetime.now(timezone.utc),
         end_ts=datetime.now(timezone.utc),
-        status=status, cost_usd=cost, retries_used=0,
+        status=status,
+        cost_usd=cost,
+        retries_used=0,
     )
     return ContextSnapshot(
-        chain_id=chain_id, request_id="r1", step_count=1,
-        cost_usd_accumulated=cost, retries_used=0,
-        aborted=False, abort_reason=None,
-        elapsed_ms=100.0, nodes=[node], events=[],
+        chain_id=chain_id,
+        request_id="r1",
+        step_count=1,
+        cost_usd_accumulated=cost,
+        retries_used=0,
+        aborted=False,
+        abort_reason=None,
+        elapsed_ms=100.0,
+        nodes=[node],
+        events=[],
     )
 
 
@@ -103,7 +123,9 @@ class TestPhase2Integration:
 
         handle_after = vos.before_step(_intent(step_id="s_after"))
         ceiling_after = handle_after.policy.ceiling_usd
-        assert ceiling_after >= ceiling_before  # May be equal due to cooldown, but never less
+        assert (
+            ceiling_after >= ceiling_before
+        )  # May be equal due to cooldown, but never less
 
     def test_file_store_persists_across_os_instances(self, tmp_path) -> None:
         """Data survives VeronicaOS reconstruction."""

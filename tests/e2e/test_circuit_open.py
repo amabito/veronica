@@ -12,6 +12,7 @@ Verifies full stack integration:
 Uses real veronica-core ExecutionContext + CircuitBreaker (not mocked).
 Uses stub LLM that always raises (to record failures).
 """
+
 from __future__ import annotations
 
 import time
@@ -75,8 +76,12 @@ class TestCircuitOpenE2E:
 
         # Record failures to trip the circuit
         for _ in range(failure_threshold):
-            d = ctx.wrap_llm_call(stub, options=WrapOptions(operation_name="failing_call"))
-            assert d == Decision.RETRY, f"Expected RETRY while recording failures, got {d}"
+            d = ctx.wrap_llm_call(
+                stub, options=WrapOptions(operation_name="failing_call")
+            )
+            assert d == Decision.RETRY, (
+                f"Expected RETRY while recording failures, got {d}"
+            )
 
         # Circuit should now be OPEN
         assert breaker.state == CircuitState.OPEN, (
@@ -115,13 +120,18 @@ class TestCircuitOpenE2E:
 
         # Next call: circuit OPEN -> HALT (fn should not be called)
         call_count = 0
+
         def _counted_stub() -> str:
             nonlocal call_count
             call_count += 1
             return "should_not_reach_here"
 
-        decision = ctx.wrap_llm_call(_counted_stub, options=WrapOptions(operation_name="blocked_call"))
-        assert decision == Decision.HALT, f"Expected HALT when circuit OPEN, got {decision}"
+        decision = ctx.wrap_llm_call(
+            _counted_stub, options=WrapOptions(operation_name="blocked_call")
+        )
+        assert decision == Decision.HALT, (
+            f"Expected HALT when circuit OPEN, got {decision}"
+        )
         assert call_count == 0, "fn should not be called when circuit is OPEN"
 
     def test_policy_hash_present_in_circuit_events(self) -> None:

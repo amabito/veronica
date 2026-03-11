@@ -1,5 +1,6 @@
 # tests/test_cost_model.py
 """Tests for veronica.cost_model -- TableCostModel."""
+
 from __future__ import annotations
 
 
@@ -9,16 +10,25 @@ from veronica.types import HistoryView, StepIntent
 
 def _intent(model: str = "gpt-4") -> StepIntent:
     return StepIntent(
-        step_id="s1", request_id="r1", chain_id="c1",
-        kind="llm", model=model, tool_name=None,
-        timeout_ms=30_000, metadata={},
+        step_id="s1",
+        request_id="r1",
+        chain_id="c1",
+        kind="llm",
+        model=model,
+        tool_name=None,
+        timeout_ms=30_000,
+        metadata={},
     )
 
 
 def _history() -> HistoryView:
     return HistoryView(
-        chain_id="c1", last_n=(), rolling_cost_usd=0.0,
-        failure_streak=0, depth=0, loop_score=0.0,
+        chain_id="c1",
+        last_n=(),
+        rolling_cost_usd=0.0,
+        failure_streak=0,
+        depth=0,
+        loop_score=0.0,
     )
 
 
@@ -39,9 +49,14 @@ class TestTableCostModel:
 
     def test_tool_call_zero(self) -> None:
         intent = StepIntent(
-            step_id="s1", request_id="r1", chain_id="c1",
-            kind="tool", model=None, tool_name="web_search",
-            timeout_ms=30_000, metadata={},
+            step_id="s1",
+            request_id="r1",
+            chain_id="c1",
+            kind="tool",
+            model=None,
+            tool_name="web_search",
+            timeout_ms=30_000,
+            metadata={},
         )
         cm = TableCostModel()
         est = cm.estimate(intent, _history(), None)
@@ -50,9 +65,14 @@ class TestTableCostModel:
 
     def test_no_model_fallback(self) -> None:
         intent = StepIntent(
-            step_id="s1", request_id="r1", chain_id="c1",
-            kind="llm", model=None, tool_name=None,
-            timeout_ms=30_000, metadata={},
+            step_id="s1",
+            request_id="r1",
+            chain_id="c1",
+            kind="llm",
+            model=None,
+            tool_name=None,
+            timeout_ms=30_000,
+            metadata={},
         )
         cm = TableCostModel()
         est = cm.estimate(intent, _history(), None)

@@ -1,5 +1,6 @@
 # src/veronica/cli.py
 """CLI entry point -- `veronica serve` command."""
+
 from __future__ import annotations
 
 import argparse
@@ -22,7 +23,9 @@ def _serve(host: str, port: int, reload: bool) -> None:
     try:
         import uvicorn
     except ImportError:
-        print("ERROR: uvicorn is required. Run: uv add uvicorn[standard]", file=sys.stderr)
+        print(
+            "ERROR: uvicorn is required. Run: uv add uvicorn[standard]", file=sys.stderr
+        )
         sys.exit(1)
 
     uvicorn.run(
@@ -43,9 +46,15 @@ def main() -> None:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     serve_parser = subparsers.add_parser("serve", help="Start the Veronica API server")
-    serve_parser.add_argument("--host", default="127.0.0.1", help="Bind host (default: 127.0.0.1)")
-    serve_parser.add_argument("--port", type=_valid_port, default=8000, help="Bind port (default: 8000)")
-    serve_parser.add_argument("--reload", action="store_true", help="Enable auto-reload (dev mode)")
+    serve_parser.add_argument(
+        "--host", default="127.0.0.1", help="Bind host (default: 127.0.0.1)"
+    )
+    serve_parser.add_argument(
+        "--port", type=_valid_port, default=8000, help="Bind port (default: 8000)"
+    )
+    serve_parser.add_argument(
+        "--reload", action="store_true", help="Enable auto-reload (dev mode)"
+    )
 
     args = parser.parse_args()
 

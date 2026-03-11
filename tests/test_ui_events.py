@@ -4,6 +4,7 @@
 Verifies that the HTML files exist with required structure, and that
 the JS files contain expected identifiers. Does not require a browser.
 """
+
 from __future__ import annotations
 
 import re
@@ -20,6 +21,7 @@ INCIDENT_JS = STATIC_DIR / "js" / "incident.js"
 
 # ---- File existence ----
 
+
 class TestStaticFilesExist:
     def test_events_html_exists(self) -> None:
         assert EVENTS_HTML.exists(), f"Missing: {EVENTS_HTML}"
@@ -35,6 +37,7 @@ class TestStaticFilesExist:
 
 
 # ---- events.html structure ----
+
 
 class TestEventsHtmlStructure:
     @pytest.fixture(scope="class")
@@ -90,7 +93,15 @@ class TestEventsHtmlStructure:
         assert "Policies" in html
 
     def test_has_all_decision_options(self, html: str) -> None:
-        decisions = ["allow", "halt", "degrade", "retry", "quarantine", "queue", "unknown"]
+        decisions = [
+            "allow",
+            "halt",
+            "degrade",
+            "retry",
+            "quarantine",
+            "queue",
+            "unknown",
+        ]
         for d in decisions:
             assert f'value="{d}"' in html, f"Missing decision option: {d}"
 
@@ -108,6 +119,7 @@ class TestEventsHtmlStructure:
 
 
 # ---- events.js structure ----
+
 
 class TestEventsJsStructure:
     @pytest.fixture(scope="class")
@@ -153,12 +165,21 @@ class TestEventsJsStructure:
         assert "URLSearchParams" in js or "searchParams" in js or "location" in js
 
     def test_has_all_decision_badge_classes(self, js: str) -> None:
-        decisions = ["allow", "halt", "degrade", "retry", "quarantine", "queue", "unknown"]
+        decisions = [
+            "allow",
+            "halt",
+            "degrade",
+            "retry",
+            "quarantine",
+            "queue",
+            "unknown",
+        ]
         for d in decisions:
             assert f"badge-{d}" in js, f"Missing badge class for decision: {d}"
 
 
 # ---- incident.html structure ----
+
 
 class TestIncidentHtmlStructure:
     @pytest.fixture(scope="class")
@@ -198,6 +219,7 @@ class TestIncidentHtmlStructure:
 
 
 # ---- incident.js structure ----
+
 
 class TestIncidentJsStructure:
     @pytest.fixture(scope="class")
@@ -254,6 +276,7 @@ class TestIncidentJsStructure:
 
 # ---- No external dependencies ----
 
+
 class TestNoDependencies:
     def test_events_html_no_cdn_imports(self) -> None:
         """events.html must not import from CDN (no React, Vue, Tailwind, Bootstrap)."""
@@ -268,7 +291,9 @@ class TestNoDependencies:
             "bootstrap",
         ]
         for pattern in cdn_patterns:
-            assert pattern not in html.lower(), f"events.html imports CDN resource: {pattern}"
+            assert pattern not in html.lower(), (
+                f"events.html imports CDN resource: {pattern}"
+            )
 
     def test_incident_html_no_cdn_imports(self) -> None:
         """incident.html must not import from CDN."""
@@ -283,17 +308,21 @@ class TestNoDependencies:
             "bootstrap",
         ]
         for pattern in cdn_patterns:
-            assert pattern not in html.lower(), f"incident.html imports CDN resource: {pattern}"
+            assert pattern not in html.lower(), (
+                f"incident.html imports CDN resource: {pattern}"
+            )
 
     def test_events_js_no_import_statements(self) -> None:
         """events.js must not use ES module imports (vanilla JS only)."""
         js = EVENTS_JS.read_text(encoding="utf-8")
         # ES module imports would be "import X from" or "import {X}"
-        assert not re.search(r"^\s*import\s+", js, re.MULTILINE), \
+        assert not re.search(r"^\s*import\s+", js, re.MULTILINE), (
             "events.js uses ES module import"
+        )
 
     def test_incident_js_no_import_statements(self) -> None:
         """incident.js must not use ES module imports."""
         js = INCIDENT_JS.read_text(encoding="utf-8")
-        assert not re.search(r"^\s*import\s+", js, re.MULTILINE), \
+        assert not re.search(r"^\s*import\s+", js, re.MULTILINE), (
             "incident.js uses ES module import"
+        )

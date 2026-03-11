@@ -1,5 +1,6 @@
 # tests/test_observability.py
 """Tests for Phase 4 observability -- payload, metrics, structured logging."""
+
 from __future__ import annotations
 
 import json
@@ -25,9 +26,14 @@ def _intent(
     chain_id: str = "c1",
 ) -> StepIntent:
     return StepIntent(
-        step_id=step_id, request_id=request_id, chain_id=chain_id,
-        kind="llm", model="gpt-4", tool_name=None,
-        timeout_ms=30_000, metadata={},
+        step_id=step_id,
+        request_id=request_id,
+        chain_id=chain_id,
+        kind="llm",
+        model="gpt-4",
+        tool_name=None,
+        timeout_ms=30_000,
+        metadata={},
     )
 
 
@@ -38,17 +44,27 @@ def _snapshot(
     request_id: str = "r1",
 ) -> ContextSnapshot:
     node = NodeRecord(
-        node_id="n1", parent_id=None, kind="llm",
+        node_id="n1",
+        parent_id=None,
+        kind="llm",
         operation_name="test_op",
         start_ts=datetime.now(timezone.utc),
         end_ts=datetime.now(timezone.utc),
-        status=status, cost_usd=cost, retries_used=0,
+        status=status,
+        cost_usd=cost,
+        retries_used=0,
     )
     return ContextSnapshot(
-        chain_id=chain_id, request_id=request_id, step_count=1,
-        cost_usd_accumulated=cost, retries_used=0,
-        aborted=False, abort_reason=None,
-        elapsed_ms=100.0, nodes=[node], events=[],
+        chain_id=chain_id,
+        request_id=request_id,
+        step_count=1,
+        cost_usd_accumulated=cost,
+        retries_used=0,
+        aborted=False,
+        abort_reason=None,
+        elapsed_ms=100.0,
+        nodes=[node],
+        events=[],
     )
 
 
@@ -79,10 +95,22 @@ class TestPayload:
         assert event_type == "step_completed"
 
         required = {
-            "schema_version", "request_id", "step_id", "chain_id",
-            "kind", "status", "cost_usd", "tokens_in", "tokens_out",
-            "elapsed_ms", "risk_level", "recommendation", "degraded",
-            "degrade_reason", "signals", "stage_time_ms",
+            "schema_version",
+            "request_id",
+            "step_id",
+            "chain_id",
+            "kind",
+            "status",
+            "cost_usd",
+            "tokens_in",
+            "tokens_out",
+            "elapsed_ms",
+            "risk_level",
+            "recommendation",
+            "degraded",
+            "degrade_reason",
+            "signals",
+            "stage_time_ms",
         }
         assert required.issubset(payload.keys())
 
@@ -117,8 +145,13 @@ class TestPayload:
 
         _, payload = emitter.snapshot()[0]
         known = {
-            "collector", "analyzer", "cost_model", "planner",
-            "arbiter", "store", "emit",
+            "collector",
+            "analyzer",
+            "cost_model",
+            "planner",
+            "arbiter",
+            "store",
+            "emit",
         }
         for key in payload["stage_time_ms"]:
             assert key in known
@@ -146,9 +179,13 @@ class TestPayload:
     def test_identity_fields_match_intent(self, tmp_path) -> None:
         """request_id, step_id, chain_id match the original intent."""
         vos, emitter = _make_os(tmp_path)
-        handle = vos.before_step(_intent(
-            step_id="s42", request_id="r99", chain_id="c7",
-        ))
+        handle = vos.before_step(
+            _intent(
+                step_id="s42",
+                request_id="r99",
+                chain_id="c7",
+            )
+        )
         vos.after_step(handle, _snapshot(chain_id="c7", request_id="r99"))
 
         _, payload = emitter.snapshot()[0]
@@ -167,26 +204,33 @@ def _metrics(prefix="test") -> tuple[MetricsSubscriber, CollectorRegistry]:
     from prometheus_client import Counter, Histogram
 
     ms.steps_total = Counter(
-        f"{prefix}_steps_total", "test",
+        f"{prefix}_steps_total",
+        "test",
         ["status", "kind", "recommendation", "risk_level"],
         registry=registry,
     )
     ms.step_elapsed = Histogram(
-        f"{prefix}_step_elapsed_ms", "test", ["kind"],
+        f"{prefix}_step_elapsed_ms",
+        "test",
+        ["kind"],
         buckets=[10, 50, 100, 500, 1000, 5000, 10000],
         registry=registry,
     )
     ms.stage_elapsed = Histogram(
-        f"{prefix}_stage_elapsed_ms", "test", ["stage"],
+        f"{prefix}_stage_elapsed_ms",
+        "test",
+        ["stage"],
         buckets=[1, 5, 10, 20, 50, 100, 250, 500, 1000, 5000],
         registry=registry,
     )
     ms.cost_total = Counter(
-        f"{prefix}_cost_microusd_total", "test",
+        f"{prefix}_cost_microusd_total",
+        "test",
         registry=registry,
     )
     ms.degrade_total = Counter(
-        f"{prefix}_degrade_total", "test",
+        f"{prefix}_degrade_total",
+        "test",
         ["degrade_reason"],
         registry=registry,
     )
@@ -196,13 +240,21 @@ def _metrics(prefix="test") -> tuple[MetricsSubscriber, CollectorRegistry]:
 def _sample_payload(**overrides) -> dict:
     base = {
         "schema_version": 1,
-        "request_id": "r1", "step_id": "s1", "chain_id": "c1",
-        "kind": "llm", "status": "ok",
-        "cost_usd": 0.01, "tokens_in": 100, "tokens_out": 50,
+        "request_id": "r1",
+        "step_id": "s1",
+        "chain_id": "c1",
+        "kind": "llm",
+        "status": "ok",
+        "cost_usd": 0.01,
+        "tokens_in": 100,
+        "tokens_out": 50,
         "elapsed_ms": 150.0,
-        "risk_level": "nominal", "recommendation": "continue",
-        "degraded": False, "degrade_reason": None,
-        "signals": [], "stage_time_ms": {"analyzer": 5.0, "planner": 10.0},
+        "risk_level": "nominal",
+        "recommendation": "continue",
+        "degraded": False,
+        "degrade_reason": None,
+        "signals": [],
+        "stage_time_ms": {"analyzer": 5.0, "planner": 10.0},
     }
     base.update(overrides)
     return base
@@ -216,8 +268,12 @@ class TestMetricsSubscriber:
 
         val = reg.get_sample_value(
             "t1_steps_total",
-            {"status": "ok", "kind": "llm",
-             "recommendation": "continue", "risk_level": "nominal"},
+            {
+                "status": "ok",
+                "kind": "llm",
+                "recommendation": "continue",
+                "risk_level": "nominal",
+            },
         )
         assert val == 1.0
 
@@ -232,24 +288,32 @@ class TestMetricsSubscriber:
     def test_stage_elapsed_observes_known(self) -> None:
         """Known stages are observed in histogram."""
         ms, reg = _metrics("t3")
-        ms("step_completed", _sample_payload(
-            stage_time_ms={"analyzer": 5.0, "planner": 10.0},
-        ))
+        ms(
+            "step_completed",
+            _sample_payload(
+                stage_time_ms={"analyzer": 5.0, "planner": 10.0},
+            ),
+        )
 
         count = reg.get_sample_value(
-            "t3_stage_elapsed_ms_count", {"stage": "analyzer"},
+            "t3_stage_elapsed_ms_count",
+            {"stage": "analyzer"},
         )
         assert count == 1.0
 
     def test_unknown_stage_dropped(self) -> None:
         """Unknown stage names are not added as labels."""
         ms, reg = _metrics("t4")
-        ms("step_completed", _sample_payload(
-            stage_time_ms={"bogus_stage": 99.0},
-        ))
+        ms(
+            "step_completed",
+            _sample_payload(
+                stage_time_ms={"bogus_stage": 99.0},
+            ),
+        )
 
         count = reg.get_sample_value(
-            "t4_stage_elapsed_ms_count", {"stage": "bogus_stage"},
+            "t4_stage_elapsed_ms_count",
+            {"stage": "bogus_stage"},
         )
         assert count is None  # not created
 
@@ -266,7 +330,8 @@ class TestMetricsSubscriber:
         ms("step_completed", _sample_payload(degraded=False, degrade_reason=None))
 
         val = reg.get_sample_value(
-            "t6_degrade_total", {"degrade_reason": "other"},
+            "t6_degrade_total",
+            {"degrade_reason": "other"},
         )
         assert val is None  # not incremented
 
@@ -348,8 +413,12 @@ class TestObservabilityIntegration:
         # Verify metrics
         val = reg.get_sample_value(
             "int_steps_total",
-            {"status": "ok", "kind": "llm",
-             "recommendation": "continue", "risk_level": "nominal"},
+            {
+                "status": "ok",
+                "kind": "llm",
+                "recommendation": "continue",
+                "risk_level": "nominal",
+            },
         )
         assert val == 3.0
 

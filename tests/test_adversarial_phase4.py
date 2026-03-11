@@ -13,6 +13,7 @@ Categories:
   5. TestAdversarialPhase4InfoLeakage  -- no stack traces / internal paths in errors
   6. TestAdversarialPhase4StateConcurrency -- concurrent /export must not interfere
 """
+
 from __future__ import annotations
 
 import threading
@@ -30,6 +31,7 @@ from veronica.types import PolicyConfig
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_policy(chain_id: str, ceiling_usd: float = 1.0) -> PolicyConfig:
     """Minimal valid PolicyConfig for test registration."""
     return PolicyConfig(
@@ -43,6 +45,7 @@ def _make_policy(chain_id: str, ceiling_usd: float = 1.0) -> PolicyConfig:
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture()
 def client(monkeypatch: pytest.MonkeyPatch) -> Any:
@@ -92,9 +95,7 @@ class TestAdversarialPhase4AuthBypass:
         self, client_with_key: TestClient
     ) -> None:
         """Empty string X-Veronica-Key must not bypass auth -- 401."""
-        resp = client_with_key.get(
-            "/export", headers={"X-Veronica-Key": ""}
-        )
+        resp = client_with_key.get("/export", headers={"X-Veronica-Key": ""})
         assert resp.status_code == 401, resp.text
 
     def test_adversarial_auth_export_key_in_wrong_header_denied(
@@ -206,16 +207,12 @@ class TestAdversarialPhase4DoS:
         assert resp.status_code == 200, resp.text
         assert len(resp.json()["policies"]) == 20
 
-    def test_adversarial_dos_health_rapid_fire_stable(
-        self, client: TestClient
-    ) -> None:
+    def test_adversarial_dos_health_rapid_fire_stable(self, client: TestClient) -> None:
         """50 rapid /health calls must all return 200 without server errors."""
         statuses = [client.get("/health").status_code for _ in range(50)]
         assert all(s == 200 for s in statuses), f"Unexpected statuses: {set(statuses)}"
 
-    def test_adversarial_dos_export_rapid_fire_stable(
-        self, client: TestClient
-    ) -> None:
+    def test_adversarial_dos_export_rapid_fire_stable(self, client: TestClient) -> None:
         """20 rapid /export calls must all return 200 without server errors."""
         statuses = [client.get("/export").status_code for _ in range(20)]
         assert all(s == 200 for s in statuses), f"Unexpected statuses: {set(statuses)}"
@@ -252,11 +249,21 @@ class TestAdversarialPhase4DataIntegrity:
         monkeypatch.setenv("VERONICA_AUTH_DISABLED", "1")
         app = create_app()
         with TestClient(app, raise_server_exceptions=False) as c:
-            app.state.registry.register(_make_policy("hash-stable-chain", ceiling_usd=3.14))
+            app.state.registry.register(
+                _make_policy("hash-stable-chain", ceiling_usd=3.14)
+            )
             body1 = c.get("/export").json()
             body2 = c.get("/export").json()
-        hash1 = next(p["policy_hash"] for p in body1["policies"] if p["chain_id"] == "hash-stable-chain")
-        hash2 = next(p["policy_hash"] for p in body2["policies"] if p["chain_id"] == "hash-stable-chain")
+        hash1 = next(
+            p["policy_hash"]
+            for p in body1["policies"]
+            if p["chain_id"] == "hash-stable-chain"
+        )
+        hash2 = next(
+            p["policy_hash"]
+            for p in body2["policies"]
+            if p["chain_id"] == "hash-stable-chain"
+        )
         assert hash1 == hash2, "policy_hash changed between two identical exports"
 
     def test_adversarial_integrity_policy_hash_differs_for_different_policies(
@@ -456,9 +463,7 @@ class TestAdversarialPhase4InfoLeakage:
         self, client_with_key: TestClient
     ) -> None:
         """401 error body must not hint at the correct API key value."""
-        resp = client_with_key.get(
-            "/export", headers={"X-Veronica-Key": "wrong-guess"}
-        )
+        resp = client_with_key.get("/export", headers={"X-Veronica-Key": "wrong-guess"})
         assert resp.status_code == 401
         assert "phase4-secret-key" not in resp.text, "Correct key leaked in 401 body"
 
@@ -544,6 +549,7 @@ class TestAdversarialPhase4StateConcurrency:
         errors: list[Exception] = []
 
         with TestClient(app, raise_server_exceptions=False) as c:
+
             def register_policies() -> None:
                 for i in range(10):
                     try:

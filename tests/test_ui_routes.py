@@ -1,5 +1,6 @@
 # tests/test_ui_routes.py
 """Tests for the Veronica web UI static file serving."""
+
 from __future__ import annotations
 
 import pytest

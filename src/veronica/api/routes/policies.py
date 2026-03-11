@@ -1,12 +1,18 @@
 # src/veronica/api/routes/policies.py
 """Policy CRUD endpoints: GET /policies, GET /policies/{id}, PUT /policies/{id}."""
+
 from __future__ import annotations
 
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Path, Query, Request
 
-from veronica.api.schemas import PolicyListResponse, PolicyResponse, PolicySummary, PolicyUpdateRequest
+from veronica.api.schemas import (
+    PolicyListResponse,
+    PolicyResponse,
+    PolicySummary,
+    PolicyUpdateRequest,
+)
 from veronica.distribution.policy_distributor import PolicyBundle, PolicyValidationError
 
 router = APIRouter(prefix="/policies", tags=["policies"])
@@ -83,6 +89,17 @@ async def get_policy(chain_id: SafeChainId, request: Request) -> PolicyResponse:
     return _bundle_to_response(bundle)
 
 
+def _is_immutable_config() -> bool:
+    """Return True if VERONICA_IMMUTABLE_CONFIG env var is set to a truthy value."""
+    import os
+
+    return os.environ.get("VERONICA_IMMUTABLE_CONFIG", "").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+
+
 @router.put("/{chain_id}", response_model=PolicyResponse, summary="Update policy")
 async def update_policy(
     chain_id: SafeChainId,
@@ -93,10 +110,17 @@ async def update_policy(
 
     Requires ``current_version`` for optimistic concurrency control.
 
+    - **403** if immutable config mode is enabled (VERONICA_IMMUTABLE_CONFIG=1).
     - **404** if the policy does not exist.
     - **409** if ``current_version`` does not match the server's version (stale).
     - **422** if the updated policy fails validation (e.g. negative ceiling_usd).
     """
+    if _is_immutable_config():
+        raise HTTPException(
+            status_code=403,
+            detail="Policy updates disabled: immutable config mode",
+        )
+
     registry = request.app.state.registry
 
     # Build the field overrides dict (exclude None and the version sentinel)
@@ -118,6 +142,8 @@ async def update_policy(
         # Use generic message to avoid leaking internal validation details
         raise HTTPException(status_code=422, detail="Policy validation failed")
     except (ValueError, TypeError):
-        raise HTTPException(status_code=409, detail="Version conflict or invalid update fields")
+        raise HTTPException(
+            status_code=409, detail="Version conflict or invalid update fields"
+        )
 
     return _bundle_to_response(bundle)

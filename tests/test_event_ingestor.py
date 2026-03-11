@@ -1,5 +1,6 @@
 # tests/test_event_ingestor.py
 """Tests for EventIngestor (ingest/event_ingestor.py)."""
+
 from __future__ import annotations
 
 import threading
@@ -41,7 +42,8 @@ def _make_event(
         hook=hook,
         request_id=request_id,
         ts=datetime(2024, 1, 1, tzinfo=timezone.utc),
-        metadata=metadata or {
+        metadata=metadata
+        or {
             "step_id": "step-1",
             "chain_id": "chain-abc",
         },
@@ -54,20 +56,24 @@ def _make_event(
 
 
 class TestMapDecision:
-    @pytest.mark.parametrize("decision,expected", [
-        (Decision.ALLOW, "allow"),
-        (Decision.HALT, "halt"),
-        (Decision.DEGRADE, "degrade"),
-        (Decision.RETRY, "retry"),
-        (Decision.QUARANTINE, "quarantine"),
-        (Decision.QUEUE, "queue"),
-    ])
+    @pytest.mark.parametrize(
+        "decision,expected",
+        [
+            (Decision.ALLOW, "allow"),
+            (Decision.HALT, "halt"),
+            (Decision.DEGRADE, "degrade"),
+            (Decision.RETRY, "retry"),
+            (Decision.QUARANTINE, "quarantine"),
+            (Decision.QUEUE, "queue"),
+        ],
+    )
     def test_all_decisions(self, decision: Decision, expected: str) -> None:
         assert _map_decision(decision) == expected
 
     def test_fallback_on_unknown_value(self) -> None:
         class FakeDecision:
             value = "NONEXISTENT"
+
         # Unknown decisions must map to "unknown" (not "allow") to avoid fail-open behavior
         assert _map_decision(FakeDecision()) == "unknown"  # type: ignore[arg-type]
 
@@ -80,7 +86,9 @@ class TestMapDecision:
 class TestDerivePolicyHash:
     def test_uses_metadata_policy_hash_when_present(self) -> None:
         valid_hash = "a" * 64  # valid SHA-256 hex string
-        event = _make_event(metadata={"policy_hash": valid_hash, "step_id": "s", "chain_id": "c"})
+        event = _make_event(
+            metadata={"policy_hash": valid_hash, "step_id": "s", "chain_id": "c"}
+        )
         assert _derive_policy_hash(event) == valid_hash
 
     def test_derives_sha256_when_not_present(self) -> None:
@@ -107,7 +115,9 @@ class TestDerivePolicyHash:
 
 class TestDeriveAuditId:
     def test_uses_metadata_audit_id_when_present(self) -> None:
-        event = _make_event(metadata={"audit_id": "my-id", "step_id": "s", "chain_id": "c"})
+        event = _make_event(
+            metadata={"audit_id": "my-id", "step_id": "s", "chain_id": "c"}
+        )
         assert _derive_audit_id(event) == "my-id"
 
     def test_generates_hex_uuid_when_not_present(self) -> None:
@@ -153,15 +163,20 @@ class TestConvertEvent:
         assert outcome.operation_name == "gpt-4o"
 
     def test_operation_name_from_metadata(self) -> None:
-        event = _make_event(metadata={
-            "step_id": "s", "chain_id": "c",
-            "operation_name": "claude-3-sonnet",
-        })
+        event = _make_event(
+            metadata={
+                "step_id": "s",
+                "chain_id": "c",
+                "operation_name": "claude-3-sonnet",
+            }
+        )
         outcome = _convert_event(event)
         assert outcome.operation_name == "claude-3-sonnet"
 
     def test_operation_name_fallback_to_hook(self) -> None:
-        event = _make_event(hook="budget_hook", metadata={"step_id": "s", "chain_id": "c"})
+        event = _make_event(
+            hook="budget_hook", metadata={"step_id": "s", "chain_id": "c"}
+        )
         outcome = _convert_event(event)
         assert outcome.operation_name == "budget_hook"
 
@@ -169,7 +184,9 @@ class TestConvertEvent:
         event = _make_event()
         outcome = _convert_event(event)
         # Event ts = 2024-01-01T00:00:00 UTC
-        assert outcome.timestamp == datetime(2024, 1, 1, tzinfo=timezone.utc).timestamp()
+        assert (
+            outcome.timestamp == datetime(2024, 1, 1, tzinfo=timezone.utc).timestamp()
+        )
 
     def test_missing_step_id_falls_back_to_request_id(self) -> None:
         event = _make_event(request_id="req-42", metadata={"chain_id": "c"})
@@ -192,10 +209,14 @@ class TestConvertEvent:
         assert outcome.cost_usd == 0.0
 
     def test_tokens_combined_from_in_and_out(self) -> None:
-        event = _make_event(metadata={
-            "step_id": "s", "chain_id": "c",
-            "tokens_in": 200, "tokens_out": 300,
-        })
+        event = _make_event(
+            metadata={
+                "step_id": "s",
+                "chain_id": "c",
+                "tokens_in": 200,
+                "tokens_out": 300,
+            }
+        )
         outcome = _convert_event(event)
         assert outcome.tokens == 500
 
@@ -208,10 +229,17 @@ class TestConvertEvent:
 class TestCPStepOutcomeStore:
     def _make_outcome(self, step_id: str = "s") -> "CPStepOutcome":  # noqa: F821
         from veronica.schemas.events import StepOutcome as CPStepOutcome
+
         return CPStepOutcome(
-            step_id=step_id, chain_id="c", operation_name="op",
-            decision="allow", cost_usd=0.0, tokens=0, duration_ms=0.0,
-            policy_hash="a" * 64, audit_id="u",
+            step_id=step_id,
+            chain_id="c",
+            operation_name="op",
+            decision="allow",
+            cost_usd=0.0,
+            tokens=0,
+            duration_ms=0.0,
+            policy_hash="a" * 64,
+            audit_id="u",
         )
 
     def test_put_and_snapshot(self) -> None:
@@ -368,6 +396,7 @@ class TestEventIngestorAdversarial:
 
     def test_store_write_failure_does_not_raise(self) -> None:
         """If store.put_many raises, ingestor must not propagate."""
+
         class BrokenStore(CPStepOutcomeStore):
             def put_many(self, outcomes):  # type: ignore[override]
                 raise RuntimeError("backend down")
@@ -378,9 +407,13 @@ class TestEventIngestorAdversarial:
     def test_event_with_null_ts_handled(self) -> None:
         """Event with ts=None must not crash conversion."""
         from veronica_core.shield.event import SafetyEvent
+
         event = SafetyEvent(
-            event_type="test", decision=Decision.ALLOW,
-            reason="r", hook="h", request_id="r1",
+            event_type="test",
+            decision=Decision.ALLOW,
+            reason="r",
+            hook="h",
+            request_id="r1",
             ts=None,  # type: ignore[arg-type]
             metadata={"step_id": "s", "chain_id": "c"},
         )

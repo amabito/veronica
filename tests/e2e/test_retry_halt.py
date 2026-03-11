@@ -11,6 +11,7 @@ Verifies full stack integration:
 Uses real veronica-core ExecutionContext (not mocked).
 Uses stub LLM that always raises (triggers retry path).
 """
+
 from __future__ import annotations
 
 import time

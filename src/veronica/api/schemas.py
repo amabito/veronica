@@ -4,6 +4,7 @@
 These models are the wire format; they are distinct from the internal
 frozen dataclasses in veronica.types and veronica.schemas.events.
 """
+
 from __future__ import annotations
 
 import math
@@ -84,7 +85,9 @@ class PolicyUpdateRequest(BaseModel):
     expires_at: float | None = None
     planner_version: str | None = None
 
-    @field_validator("ceiling_usd", "deadline_ts", "expires_at", "rate_window_seconds", mode="before")
+    @field_validator(
+        "ceiling_usd", "deadline_ts", "expires_at", "rate_window_seconds", mode="before"
+    )
     @classmethod
     def _float_fields_finite(cls, v: object) -> object:
         if v is None:

@@ -1,5 +1,6 @@
 # src/veronica/api/routes/events.py
 """GET /events endpoint -- paginated, filterable event log."""
+
 from __future__ import annotations
 
 import heapq
@@ -11,7 +12,9 @@ from pydantic import BaseModel
 
 router = APIRouter(tags=["events"])
 
-_VALID_DECISIONS = frozenset({"allow", "halt", "degrade", "retry", "quarantine", "queue", "unknown"})
+_VALID_DECISIONS = frozenset(
+    {"allow", "halt", "degrade", "retry", "quarantine", "queue", "unknown"}
+)
 
 MAX_LIMIT = 1000
 DEFAULT_LIMIT = 100
@@ -31,6 +34,7 @@ class EventItem(BaseModel):
     policy_hash: str
     audit_id: str
     timestamp: float
+    reason_code: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -47,6 +51,7 @@ class EventItem(BaseModel):
             policy_hash=outcome.policy_hash,
             audit_id=outcome.audit_id,
             timestamp=outcome.timestamp,
+            reason_code=getattr(outcome, "reason_code", None),
         )
 
 
@@ -72,12 +77,18 @@ class EventsResponse(BaseModel):
 )
 async def list_events(
     request: Request,
-    chain_id: Annotated[str | None, Query(max_length=256, description="Filter by chain_id")] = None,
+    chain_id: Annotated[
+        str | None, Query(max_length=256, description="Filter by chain_id")
+    ] = None,
     decision: Annotated[
         list[str] | None,
-        Query(description="Filter by decision verdict (repeatable: ?decision=halt&decision=degrade)"),
+        Query(
+            description="Filter by decision verdict (repeatable: ?decision=halt&decision=degrade)"
+        ),
     ] = None,
-    policy_hash: Annotated[str | None, Query(max_length=64, description="Filter by policy SHA-256 hex")] = None,
+    policy_hash: Annotated[
+        str | None, Query(max_length=64, description="Filter by policy SHA-256 hex")
+    ] = None,
     since: Annotated[
         float | None,
         Query(description="Filter events with timestamp >= since (Unix epoch seconds)"),
@@ -86,7 +97,9 @@ async def list_events(
         float | None,
         Query(description="Filter events with timestamp <= until (Unix epoch seconds)"),
     ] = None,
-    offset: Annotated[int, Query(ge=0, le=MAX_RESULTS_CAP, description="Pagination offset")] = 0,
+    offset: Annotated[
+        int, Query(ge=0, le=MAX_RESULTS_CAP, description="Pagination offset")
+    ] = 0,
     limit: Annotated[
         int, Query(ge=1, le=MAX_LIMIT, description=f"Page size (max {MAX_LIMIT})")
     ] = DEFAULT_LIMIT,
@@ -99,7 +112,9 @@ async def list_events(
     # Validate decision values up front
     if decision is not None:
         if len(decision) > 20:
-            raise HTTPException(status_code=400, detail="Too many decision filter values (max 20)")
+            raise HTTPException(
+                status_code=400, detail="Too many decision filter values (max 20)"
+            )
         invalid = [d for d in decision if d not in _VALID_DECISIONS]
         if invalid:
             raise HTTPException(

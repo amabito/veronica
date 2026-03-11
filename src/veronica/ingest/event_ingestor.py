@@ -13,6 +13,7 @@ Thread-safety
 All public methods are thread-safe. The internal batch list is protected
 by a lock. Flush is idempotent; concurrent flushes serialize on the lock.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -96,9 +97,19 @@ def _convert_event(
 ) -> CPStepOutcome:
     """Convert one kernel SafetyEvent to a CP StepOutcome."""
     meta = event.metadata or {}
-    step_id = re.sub(r"[^a-zA-Z0-9_:@.\-]", "_", str(meta.get("step_id", event.request_id or uuid.uuid4().hex)))[:256]
-    chain_id = re.sub(r"[^a-zA-Z0-9_:@.\-]", "_", str(meta.get("chain_id", "unknown")))[:256]
-    op_name = re.sub(r"[^a-zA-Z0-9_:@.\-]", "_", str(operation_name or meta.get("operation_name", event.hook)))[:256]
+    step_id = re.sub(
+        r"[^a-zA-Z0-9_:@.\-]",
+        "_",
+        str(meta.get("step_id", event.request_id or uuid.uuid4().hex)),
+    )[:256]
+    chain_id = re.sub(r"[^a-zA-Z0-9_:@.\-]", "_", str(meta.get("chain_id", "unknown")))[
+        :256
+    ]
+    op_name = re.sub(
+        r"[^a-zA-Z0-9_:@.\-]",
+        "_",
+        str(operation_name or meta.get("operation_name", event.hook)),
+    )[:256]
     raw_cost = float(meta.get("cost_usd", 0.0))
     cost_usd = max(0.0, raw_cost) if math.isfinite(raw_cost) else 0.0
     tokens_in = max(0, int(meta.get("tokens", meta.get("tokens_in", 0)) or 0))
@@ -111,6 +122,12 @@ def _convert_event(
     except AttributeError:
         ts = time.time()
 
+    # Extract reason_code from SafetyEvent.reason (sanitize to safe chars)
+    raw_reason = getattr(event, "reason", None)
+    reason_code: str | None = None
+    if isinstance(raw_reason, str) and raw_reason:
+        reason_code = re.sub(r"[^a-zA-Z0-9_:@.\-]", "_", raw_reason)[:256]
+
     return CPStepOutcome(
         step_id=str(step_id),
         chain_id=str(chain_id),
@@ -122,6 +139,8 @@ def _convert_event(
         policy_hash=_derive_policy_hash(event),
         audit_id=_derive_audit_id(event),
         timestamp=ts,
+        schema_version="1.0",
+        reason_code=reason_code,
     )
 
 
@@ -147,7 +166,7 @@ class CPStepOutcomeStore:
     def _evict_if_needed(self) -> None:
         """Drop oldest records if capacity exceeded. Caller must hold lock."""
         if len(self._records) > self._max_records:
-            self._records = self._records[-self._max_records:]
+            self._records = self._records[-self._max_records :]
 
     def put(self, outcome: CPStepOutcome) -> None:
         with self._lock:
@@ -242,7 +261,9 @@ class EventIngestor:
             outcome = _convert_event(event, self._operation_name)
         except Exception:
             event_type_label = repr(getattr(event, "event_type", "<unknown>"))[:128]
-            logger.exception("[EventIngestor] conversion failed for event_type=%s", event_type_label)
+            logger.exception(
+                "[EventIngestor] conversion failed for event_type=%s", event_type_label
+            )
             with self._lock:
                 self._error_total += 1
             return

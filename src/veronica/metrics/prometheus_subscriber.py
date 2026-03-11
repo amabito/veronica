@@ -30,6 +30,7 @@ veronica_degrade_total          Counter  chain_id
 veronica_step_duration_seconds  Histogram chain_id
 veronica_active_chains          Gauge    (no labels)
 """
+
 from __future__ import annotations
 
 import threading
@@ -41,19 +42,44 @@ if TYPE_CHECKING:
 _LABEL_UNKNOWN = "unknown"
 _LABEL_OVERFLOW = "overflow"
 _DURATION_BUCKETS = (
-    0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,
+    0.001,
+    0.005,
+    0.01,
+    0.025,
+    0.05,
+    0.1,
+    0.25,
+    0.5,
+    1.0,
+    2.5,
+    5.0,
+    10.0,
 )
 _MS_TO_S = 1_000.0
 MAX_LABEL_LENGTH = 64
 _CHAIN_ID_MAX_LEN = 32
 _MAX_CHAIN_IDS = 1000
-_VALID_DECISIONS = frozenset({
-    "allow", "halt", "halted", "degrade", "deny", "denied", "retry",
-    "quarantine", "queue", "error", "ok", "unknown",
-})
+_VALID_DECISIONS = frozenset(
+    {
+        "allow",
+        "halt",
+        "halted",
+        "degrade",
+        "deny",
+        "denied",
+        "retry",
+        "quarantine",
+        "queue",
+        "error",
+        "ok",
+        "unknown",
+    }
+)
 
 
-def _safe_get(payload: Mapping[str, Any], key: str, default: str = _LABEL_UNKNOWN) -> str:
+def _safe_get(
+    payload: Mapping[str, Any], key: str, default: str = _LABEL_UNKNOWN
+) -> str:
     val = payload.get(key)
     if val is None or val == "":
         return default
@@ -92,38 +118,44 @@ class PrometheusSubscriber:
         registry = registry or REGISTRY
 
         self.step_completed_total = self._get_or_create(
-            registry, Counter,
+            registry,
+            Counter,
             f"{prefix}_step_completed_total",
             "Total completed steps",
             ["chain_id", "decision_type"],
         )
         self.step_denied_total = self._get_or_create(
-            registry, Counter,
+            registry,
+            Counter,
             f"{prefix}_step_denied_total",
             "Total denied steps",
             ["chain_id", "decision_type"],
         )
         self.halt_total = self._get_or_create(
-            registry, Counter,
+            registry,
+            Counter,
             f"{prefix}_halt_total",
             "Total halted steps",
             ["chain_id"],
         )
         self.degrade_total = self._get_or_create(
-            registry, Counter,
+            registry,
+            Counter,
             f"{prefix}_degrade_total",
             "Total degraded steps",
             ["chain_id"],
         )
         self.step_duration_seconds = self._get_or_create(
-            registry, Histogram,
+            registry,
+            Histogram,
             f"{prefix}_step_duration_seconds",
             "Step duration in seconds",
             ["chain_id"],
             buckets=_DURATION_BUCKETS,
         )
         self.active_chains = self._get_or_create(
-            registry, Gauge,
+            registry,
+            Gauge,
             f"{prefix}_active_chains",
             "Number of distinct chains seen in this process",
         )
@@ -141,7 +173,9 @@ class PrometheusSubscriber:
         return cls(name, documentation, labelnames, registry=registry, **kwargs)
 
     def __call__(
-        self, event_type: str, payload: Mapping[str, Any],
+        self,
+        event_type: str,
+        payload: Mapping[str, Any],
     ) -> None:
         """Callback for BufferedEmitter.subscribe()."""
         try:

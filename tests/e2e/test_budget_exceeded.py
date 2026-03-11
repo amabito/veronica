@@ -10,6 +10,7 @@ Verifies full stack integration:
 Uses real veronica-core ExecutionContext (not mocked).
 Uses stub LLM (no real API calls).
 """
+
 from __future__ import annotations
 
 from veronica_core.containment.execution_context import (
@@ -66,7 +67,9 @@ class TestBudgetExceededE2E:
             _stub_llm,
             options=WrapOptions(operation_name="step2", cost_estimate_hint=0.09),
         )
-        assert decision2 == Decision.HALT, f"Expected HALT on budget exceeded, got {decision2}"
+        assert decision2 == Decision.HALT, (
+            f"Expected HALT on budget exceeded, got {decision2}"
+        )
 
     def test_snapshot_shows_aborted_on_budget_exceeded(self) -> None:
         """Snapshot reflects halt state after budget exceeded."""
@@ -206,7 +209,9 @@ class TestBudgetExceededE2E:
         # Call that exceeds budget
         decision = ctx.wrap_llm_call(
             _stub_llm,
-            options=WrapOptions(operation_name="expensive_call", cost_estimate_hint=0.15),
+            options=WrapOptions(
+                operation_name="expensive_call", cost_estimate_hint=0.15
+            ),
         )
         assert decision == Decision.HALT
 

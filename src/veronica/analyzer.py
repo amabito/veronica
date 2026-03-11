@@ -1,5 +1,6 @@
 # src/veronica/analyzer.py
 """VERONICA OS analyzer -- RuleAnalyzer with 3 ceiling adjustment rules."""
+
 from __future__ import annotations
 
 from veronica.types import AnalysisResult, HistoryView, Signal, StepIntent, StepOutcome
@@ -33,36 +34,44 @@ class RuleAnalyzer:
 
         # Intent vs outcome kind mismatch
         if intent.kind != outcome.kind:
-            signals.append(Signal(
-                kind="intent_deviation",
-                severity="warning",
-                detail=f"intended {intent.kind}, got {outcome.kind}",
-            ))
+            signals.append(
+                Signal(
+                    kind="intent_deviation",
+                    severity="warning",
+                    detail=f"intended {intent.kind}, got {outcome.kind}",
+                )
+            )
 
         # Failure streak (current outcome counts toward streak)
         streak = history.failure_streak + (1 if outcome.status != "ok" else 0)
         if streak >= _FAILURE_STREAK_CRITICAL:
-            signals.append(Signal(
-                kind="repeated_failure",
-                severity="critical",
-                detail=f"{streak} consecutive failures",
-            ))
+            signals.append(
+                Signal(
+                    kind="repeated_failure",
+                    severity="critical",
+                    detail=f"{streak} consecutive failures",
+                )
+            )
             risk_level = "critical"
         elif streak >= _FAILURE_STREAK_ELEVATED:
-            signals.append(Signal(
-                kind="repeated_failure",
-                severity="warning",
-                detail=f"{streak} consecutive failures",
-            ))
+            signals.append(
+                Signal(
+                    kind="repeated_failure",
+                    severity="warning",
+                    detail=f"{streak} consecutive failures",
+                )
+            )
             risk_level = "elevated"
 
         # Depth guard (Rule 3 -- takes precedence)
         if history.depth >= _DEPTH_THRESHOLD:
-            signals.append(Signal(
-                kind="depth_anomaly",
-                severity="critical",
-                detail=f"depth {history.depth} >= {_DEPTH_THRESHOLD}",
-            ))
+            signals.append(
+                Signal(
+                    kind="depth_anomaly",
+                    severity="critical",
+                    detail=f"depth {history.depth} >= {_DEPTH_THRESHOLD}",
+                )
+            )
             risk_level = "critical"
             recommendation = "halt"
             return AnalysisResult(

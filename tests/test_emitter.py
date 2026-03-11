@@ -1,5 +1,6 @@
 # tests/test_emitter.py
 """Tests for veronica.emitter -- NullEmitter."""
+
 from __future__ import annotations
 
 from veronica.emitter import NullEmitter

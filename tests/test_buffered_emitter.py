@@ -1,5 +1,6 @@
 # tests/test_buffered_emitter.py
 """Tests for veronica.buffered_emitter -- ring buffer event emitter."""
+
 from __future__ import annotations
 
 import threading
@@ -171,6 +172,8 @@ class TestBufferedEmitterThreadSafety:
     def test_fatal_exception_propagates(self) -> None:
         """SystemExit/KeyboardInterrupt from subscriber propagates."""
         emitter = BufferedEmitter()
-        emitter.subscribe("fatal", lambda et, p: (_ for _ in ()).throw(KeyboardInterrupt))
+        emitter.subscribe(
+            "fatal", lambda et, p: (_ for _ in ()).throw(KeyboardInterrupt)
+        )
         with pytest.raises(KeyboardInterrupt):
             emitter.emit("test", {})

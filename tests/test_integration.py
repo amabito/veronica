@@ -1,5 +1,6 @@
 # tests/test_integration.py
 """Integration test: full VeronicaOS pipeline with veronica-core types."""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -87,33 +88,53 @@ def test_halt_feedback_loop() -> None:
 
     # Step 1: halted
     intent1 = StepIntent(
-        step_id="s0", request_id="r1", chain_id="c1",
-        kind="llm", model="gpt-4", tool_name=None,
-        timeout_ms=30_000, metadata={},
+        step_id="s0",
+        request_id="r1",
+        chain_id="c1",
+        kind="llm",
+        model="gpt-4",
+        tool_name=None,
+        timeout_ms=30_000,
+        metadata={},
     )
     handle1 = vos.before_step(intent1)
     ceiling1 = handle1.policy.ceiling_usd
 
     node = NodeRecord(
-        node_id="n0", parent_id=None, kind="llm",
+        node_id="n0",
+        parent_id=None,
+        kind="llm",
         operation_name="halted_op",
         start_ts=datetime.now(timezone.utc),
         end_ts=datetime.now(timezone.utc),
-        status="halted", cost_usd=0.5, retries_used=0,
+        status="halted",
+        cost_usd=0.5,
+        retries_used=0,
     )
     snapshot = ContextSnapshot(
-        chain_id="c1", request_id="r1", step_count=1,
-        cost_usd_accumulated=0.5, retries_used=0,
-        aborted=False, abort_reason=None,
-        elapsed_ms=50.0, nodes=[node], events=[],
+        chain_id="c1",
+        request_id="r1",
+        step_count=1,
+        cost_usd_accumulated=0.5,
+        retries_used=0,
+        aborted=False,
+        abort_reason=None,
+        elapsed_ms=50.0,
+        nodes=[node],
+        events=[],
     )
     vos.after_step(handle1, snapshot)
 
     # Step 2: should have tighter ceiling
     intent2 = StepIntent(
-        step_id="s1", request_id="r1", chain_id="c1",
-        kind="llm", model="gpt-4", tool_name=None,
-        timeout_ms=30_000, metadata={},
+        step_id="s1",
+        request_id="r1",
+        chain_id="c1",
+        kind="llm",
+        model="gpt-4",
+        tool_name=None,
+        timeout_ms=30_000,
+        metadata={},
     )
     handle2 = vos.before_step(intent2)
     ceiling2 = handle2.policy.ceiling_usd
@@ -125,9 +146,14 @@ def test_policy_config_all_fields_populated() -> None:
     """PolicyConfig from before_step has all required fields."""
     vos = VeronicaOS()
     intent = StepIntent(
-        step_id="s0", request_id="r1", chain_id="c1",
-        kind="llm", model="gpt-4", tool_name=None,
-        timeout_ms=30_000, metadata={},
+        step_id="s0",
+        request_id="r1",
+        chain_id="c1",
+        kind="llm",
+        model="gpt-4",
+        tool_name=None,
+        timeout_ms=30_000,
+        metadata={},
     )
     handle = vos.before_step(intent)
     pc = handle.policy

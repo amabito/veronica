@@ -1,5 +1,6 @@
 # src/veronica/os.py
 """VERONICA OS -- the main orchestrator."""
+
 from __future__ import annotations
 
 import logging
@@ -58,14 +59,22 @@ _DEFAULT_STAGE_BUDGETS: dict[str, float] = {
 
 _DEFAULT_REQUEST_BUDGET_USD = 100.0
 
-_KNOWN_STAGES = frozenset({
-    "collector", "analyzer", "cost_model", "planner", "arbiter",
-    "store", "emit",
-})
+_KNOWN_STAGES = frozenset(
+    {
+        "collector",
+        "analyzer",
+        "cost_model",
+        "planner",
+        "arbiter",
+        "store",
+        "emit",
+    }
+)
 
 _DEFAULT_TIMEOUT_MS = 30_000
 
 T = TypeVar("T")
+
 
 def _compute_policy_hash(policy: "PolicyConfig") -> str:
     """Return SHA-256 hex digest of a PolicyConfig.
@@ -89,14 +98,16 @@ def _make_fallback_snapshot(intent: StepIntent, reason: str) -> ContextSnapshot:
         from veronica_core.shield.hooks import Decision
         from datetime import datetime, timezone
 
-        events = [SafetyEvent(
-            event_type="snapshot_failed",
-            decision=Decision.HALT,
-            reason=reason,
-            hook="veronica_os",
-            ts=datetime.now(timezone.utc),
-            metadata={"step_id": intent.step_id},
-        )]
+        events = [
+            SafetyEvent(
+                event_type="snapshot_failed",
+                decision=Decision.HALT,
+                reason=reason,
+                hook="veronica_os",
+                ts=datetime.now(timezone.utc),
+                metadata={"step_id": intent.step_id},
+            )
+        ]
     except Exception:
         pass  # events stays empty; snapshot still valid
 
@@ -213,9 +224,7 @@ class VeronicaOS:
                 logger.exception(
                     "[VERONICA_OS] snapshot retrieval failed; using fallback"
                 )
-                snapshot = _make_fallback_snapshot(
-                    intent, "snapshot_retrieval_failed"
-                )
+                snapshot = _make_fallback_snapshot(intent, "snapshot_retrieval_failed")
             self.after_step(handle, snapshot)
 
     def _normalize_intent(self, intent: StepIntent) -> StepIntent:
@@ -269,16 +278,19 @@ class VeronicaOS:
             if denial is not None:
                 logger.warning("[VERONICA_OS] org policy denied: %s", denial)
                 try:
-                    self._emitter.emit("step_denied", {
-                        "schema_version": 1,
-                        "request_id": intent.request_id,
-                        "step_id": intent.step_id,
-                        "chain_id": intent.chain_id,
-                        "kind": intent.kind,
-                        "reason": denial,
-                        "model": intent.model,
-                        "tool_name": intent.tool_name,
-                    })
+                    self._emitter.emit(
+                        "step_denied",
+                        {
+                            "schema_version": 1,
+                            "request_id": intent.request_id,
+                            "step_id": intent.step_id,
+                            "chain_id": intent.chain_id,
+                            "kind": intent.kind,
+                            "reason": denial,
+                            "model": intent.model,
+                            "tool_name": intent.tool_name,
+                        },
+                    )
                 except Exception:
                     pass  # fire-and-forget
                 policy = PolicyConfig(
@@ -292,13 +304,17 @@ class VeronicaOS:
                     policy=policy,
                     desired=DesiredPolicy(
                         chain_id=intent.chain_id,
-                        ceiling_usd=0.0, ceiling_steps=0,
-                        ceiling_tokens_out=0, on_exceed="halt",
+                        ceiling_usd=0.0,
+                        ceiling_steps=0,
+                        ceiling_tokens_out=0,
+                        on_exceed="halt",
                         fallback_model=None,
-                        timeout_ms=intent.timeout_ms, priority=0,
+                        timeout_ms=intent.timeout_ms,
+                        priority=0,
                     ),
                     cost=CostEstimate(
-                        estimated_usd=0.0, confidence=1.0,
+                        estimated_usd=0.0,
+                        confidence=1.0,
                         model_used=intent.model or "unknown",
                         basis="fallback",
                     ),
@@ -322,7 +338,9 @@ class VeronicaOS:
         try:
             cost, elapsed = run_with_budget(
                 lambda: self._cost_model.estimate(
-                    intent, history, last_analysis,
+                    intent,
+                    history,
+                    last_analysis,
                 ),
                 self._budgets.get("cost_model", 10.0),
                 "cost_model",
@@ -334,8 +352,10 @@ class VeronicaOS:
             degraded = True
             stage_times["cost_model"] = e.actual_ms
             cost = CostEstimate(
-                estimated_usd=0.01, confidence=0.1,
-                model_used="fallback", basis="fallback",
+                estimated_usd=0.01,
+                confidence=0.1,
+                model_used="fallback",
+                basis="fallback",
             )
 
         # 3. Budget state + 4. Planner + 5. Arbiter
@@ -357,7 +377,9 @@ class VeronicaOS:
             try:
                 desired, elapsed = run_with_budget(
                     lambda: self._planner.plan(
-                        last_analysis, cost, budget,
+                        last_analysis,
+                        cost,
+                        budget,
                     ),
                     self._budgets.get("planner", 30.0),
                     "planner",
@@ -416,30 +438,39 @@ class VeronicaOS:
                 logger.warning("[VERONICA_OS] %s", e)
                 degraded = True
                 stage_times["arbiter"] = e.actual_ms
-                configs = {intent.chain_id: PolicyConfig(
-                    chain_id=intent.chain_id,
-                    ceiling_usd=desired.ceiling_usd,
-                    on_exceed="halt",
-                    issued_at=time.time(),
-                )}
+                configs = {
+                    intent.chain_id: PolicyConfig(
+                        chain_id=intent.chain_id,
+                        ceiling_usd=desired.ceiling_usd,
+                        on_exceed="halt",
+                        issued_at=time.time(),
+                    )
+                }
 
-        policy = configs.get(intent.chain_id, PolicyConfig(
-            chain_id=intent.chain_id,
-            ceiling_usd=1.0,
-            on_exceed="halt",
-            issued_at=time.time(),
-        ))
+        policy = configs.get(
+            intent.chain_id,
+            PolicyConfig(
+                chain_id=intent.chain_id,
+                ceiling_usd=1.0,
+                on_exceed="halt",
+                issued_at=time.time(),
+            ),
+        )
 
         if policy.expires_at is not None and policy.expires_at < time.time():
             logger.warning(
                 "[VERONICA_OS] policy expires_at=%s is in the past for chain_id=%s "
                 "(step_id=%s); policy may be stale",
-                policy.expires_at, intent.chain_id, intent.step_id,
+                policy.expires_at,
+                intent.chain_id,
+                intent.step_id,
             )
 
         meta = DecisionMeta(
             risk_level=last_analysis.risk_level if last_analysis else "nominal",
-            recommendation=last_analysis.recommendation if last_analysis else "continue",
+            recommendation=last_analysis.recommendation
+            if last_analysis
+            else "continue",
             degraded=degraded,
             stage_time_ms=stage_times,
         )
@@ -477,7 +508,9 @@ class VeronicaOS:
         try:
             analysis, elapsed = run_with_budget(
                 lambda: self._analyzer.analyze(
-                    handle.intent, outcome, history,
+                    handle.intent,
+                    outcome,
+                    history,
                 ),
                 self._budgets.get("analyzer", 20.0),
                 "analyzer",
@@ -488,7 +521,9 @@ class VeronicaOS:
             logger.warning("[VERONICA_OS] %s", e)
             stage_times["analyzer"] = e.actual_ms
             analysis = AnalysisResult(
-                signals=(), risk_level="nominal", recommendation="continue",
+                signals=(),
+                risk_level="nominal",
+                recommendation="continue",
             )
 
         # 4. Update state + budget context under single lock acquisition.
@@ -512,8 +547,12 @@ class VeronicaOS:
             )
         t0 = time.monotonic()
         self._store.commit(
-            outcome, analysis, handle.cost,
-            handle.desired, handle.policy, handle.decision_meta,
+            outcome,
+            analysis,
+            handle.cost,
+            handle.desired,
+            handle.policy,
+            handle.decision_meta,
         )
         stage_times["store"] = (time.monotonic() - t0) * 1000
 
@@ -546,12 +585,10 @@ class VeronicaOS:
             "degraded": handle.decision_meta.degraded,
             "degrade_reason": self._degrade_reason(handle),
             "signals": [
-                {"kind": s.kind, "severity": s.severity}
-                for s in analysis.signals
+                {"kind": s.kind, "severity": s.severity} for s in analysis.signals
             ],
             "stage_time_ms": {
-                k: v for k, v in all_stage_times.items()
-                if k in _KNOWN_STAGES
+                k: v for k, v in all_stage_times.items() if k in _KNOWN_STAGES
             },
             # Audit tracing (Task #4)
             "policy_hash": _compute_policy_hash(handle.policy),

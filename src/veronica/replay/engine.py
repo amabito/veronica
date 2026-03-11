@@ -15,6 +15,7 @@ When override_policy is provided, the engine simulates enforcement:
   - Otherwise -> "allow"
 Steps are processed in timestamp order.
 """
+
 from __future__ import annotations
 
 import logging
@@ -22,7 +23,10 @@ import math
 import time
 from typing import Any
 
-from veronica.distribution.policy_distributor import PolicyDistributor, PolicyValidationError
+from veronica.distribution.policy_distributor import (
+    PolicyDistributor,
+    PolicyValidationError,
+)
 from veronica.replay.models import DecisionDiff, ReplayRequest, ReplayResult
 from veronica.schemas.events import StepOutcome
 from veronica.types import PolicyConfig
@@ -61,11 +65,15 @@ def _build_override_policy(override: dict[str, Any]) -> PolicyConfig:
     except (TypeError, ValueError) as exc:
         raise ValueError("override_policy.ceiling_usd must be numeric") from exc
     if not math.isfinite(ceiling_usd) or ceiling_usd < 0:
-        raise ValueError("override_policy.ceiling_usd must be a finite non-negative number")
+        raise ValueError(
+            "override_policy.ceiling_usd must be a finite non-negative number"
+        )
 
     ceiling_steps_raw = override.get("ceiling_steps")
     if ceiling_steps_raw is not None:
-        if not isinstance(ceiling_steps_raw, int) or isinstance(ceiling_steps_raw, bool):
+        if not isinstance(ceiling_steps_raw, int) or isinstance(
+            ceiling_steps_raw, bool
+        ):
             raise ValueError("override_policy.ceiling_steps must be an integer")
         ceiling_steps = ceiling_steps_raw
         if ceiling_steps < 0:
@@ -75,7 +83,9 @@ def _build_override_policy(override: dict[str, Any]) -> PolicyConfig:
 
     ceiling_tokens_out_raw = override.get("ceiling_tokens_out")
     if ceiling_tokens_out_raw is not None:
-        if not isinstance(ceiling_tokens_out_raw, int) or isinstance(ceiling_tokens_out_raw, bool):
+        if not isinstance(ceiling_tokens_out_raw, int) or isinstance(
+            ceiling_tokens_out_raw, bool
+        ):
             raise ValueError("override_policy.ceiling_tokens_out must be an integer")
         ceiling_tokens_out = ceiling_tokens_out_raw
         if ceiling_tokens_out < 0:
@@ -92,7 +102,9 @@ def _build_override_policy(override: dict[str, Any]) -> PolicyConfig:
         except (TypeError, ValueError) as exc:
             raise ValueError("override_policy.timeout_ms must be numeric") from exc
         if not math.isfinite(timeout_ms) or timeout_ms < 0:
-            raise ValueError("override_policy.timeout_ms must be a finite non-negative number")
+            raise ValueError(
+                "override_policy.timeout_ms must be a finite non-negative number"
+            )
     else:
         timeout_ms = None
 
@@ -113,7 +125,9 @@ def _build_override_policy(override: dict[str, Any]) -> PolicyConfig:
     except (TypeError, ValueError) as exc:
         raise ValueError("override_policy.issued_at must be numeric") from exc
     if not math.isfinite(issued_at) or issued_at < 0:
-        raise ValueError("override_policy.issued_at must be a finite non-negative number")
+        raise ValueError(
+            "override_policy.issued_at must be a finite non-negative number"
+        )
 
     return PolicyConfig(
         chain_id=str(chain_id).strip(),
@@ -152,7 +166,10 @@ def _replay_decision(
     # ceiling_tokens_out is a per-step limit (not cumulative) by design:
     # individual step outputs exceeding the ceiling trigger enforcement.
     event_tokens = event.tokens if math.isfinite(event.tokens) else 0
-    if policy.ceiling_tokens_out is not None and event_tokens > policy.ceiling_tokens_out:
+    if (
+        policy.ceiling_tokens_out is not None
+        and event_tokens > policy.ceiling_tokens_out
+    ):
         return policy.on_exceed
 
     return _ALLOW
@@ -188,7 +205,8 @@ class ReplayEngine:
 
         # Filter by chain_id and time range (both bounds inclusive)
         events = [
-            e for e in all_events
+            e
+            for e in all_events
             if (
                 e.chain_id == request.chain_id
                 and request.from_timestamp <= e.timestamp <= request.to_timestamp
@@ -238,7 +256,9 @@ class ReplayEngine:
             event_cost = event.cost_usd if math.isfinite(event.cost_usd) else 0.0
 
             if override_policy is not None:
-                replayed = _replay_decision(event, idx, cumulative_cost, override_policy)
+                replayed = _replay_decision(
+                    event, idx, cumulative_cost, override_policy
+                )
             else:
                 # No override: replayed decision matches original
                 replayed = original
@@ -247,12 +267,14 @@ class ReplayEngine:
             if changed:
                 changed_count += 1
 
-            diffs.append(DecisionDiff(
-                step_id=event.step_id,
-                original_decision=original,
-                replayed_decision=replayed,
-                changed=changed,
-            ))
+            diffs.append(
+                DecisionDiff(
+                    step_id=event.step_id,
+                    original_decision=original,
+                    replayed_decision=replayed,
+                    changed=changed,
+                )
+            )
 
             cumulative_cost += event_cost
 

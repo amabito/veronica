@@ -1,5 +1,6 @@
 # tests/test_api_policies.py
 """Tests for GET /policies and GET /policies/{id} endpoints."""
+
 from __future__ import annotations
 
 import time
@@ -206,12 +207,21 @@ class TestAdversarialPolicies:
         resp = client.get("/policies")
         assert resp.status_code == 200
         item = resp.json()["items"][0]
-        expected_keys = {"chain_id", "on_exceed", "ceiling_usd", "priority", "issued_at", "policy_hash", "version"}
+        expected_keys = {
+            "chain_id",
+            "on_exceed",
+            "ceiling_usd",
+            "priority",
+            "issued_at",
+            "policy_hash",
+            "version",
+        }
         assert set(item.keys()) == expected_keys
 
     def test_concurrent_register_then_list(self, client):
         """Concurrent registrations must all be visible in list."""
         import threading
+
         registry = client.app.state.registry
         errors = []
 
@@ -230,5 +240,9 @@ class TestAdversarialPolicies:
         assert not errors
         resp = client.get("/policies?per_page=200")
         assert resp.status_code == 200
-        registered = {item["chain_id"] for item in resp.json()["items"] if item["chain_id"].startswith("concurrent-")}
+        registered = {
+            item["chain_id"]
+            for item in resp.json()["items"]
+            if item["chain_id"].startswith("concurrent-")
+        }
         assert len(registered) == 10

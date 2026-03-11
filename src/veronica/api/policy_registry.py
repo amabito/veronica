@@ -4,6 +4,7 @@
 Wraps PolicyDistributor to provide versioned CRUD operations on policies.
 The registry is mounted on app.state.registry at startup.
 """
+
 from __future__ import annotations
 
 import threading
@@ -38,7 +39,9 @@ class PolicyRegistry:
     # Read operations
     # ------------------------------------------------------------------
 
-    def list_policies(self, page: int = 1, per_page: int = 20) -> tuple[list[PolicyBundle], int]:
+    def list_policies(
+        self, page: int = 1, per_page: int = 20
+    ) -> tuple[list[PolicyBundle], int]:
         """Return a paginated snapshot of all stored policies.
 
         Returns (page_items, total_count).
@@ -112,9 +115,7 @@ class PolicyRegistry:
             # Re-check version after re-acquiring lock (TOCTOU guard)
             current = self._store.get(chain_id)
             if current is None or current.version != current_version:
-                raise ValueError(
-                    "stale version (concurrent update detected)"
-                )
+                raise ValueError("stale version (concurrent update detected)")
             self._store[chain_id] = new_bundle
 
         return new_bundle

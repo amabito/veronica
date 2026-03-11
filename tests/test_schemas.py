@@ -1,5 +1,6 @@
 # tests/test_schemas.py
 """Tests for the unified CP event schema (schemas/events.py)."""
+
 from __future__ import annotations
 
 import time
@@ -53,21 +54,30 @@ class TestStepOutcome:
         outcome = self._make()
         d = outcome.to_dict()
         expected_keys = {
-            "step_id", "chain_id", "operation_name", "decision",
-            "cost_usd", "tokens", "duration_ms", "policy_hash",
-            "audit_id", "timestamp",
+            "step_id",
+            "chain_id",
+            "operation_name",
+            "decision",
+            "cost_usd",
+            "tokens",
+            "duration_ms",
+            "policy_hash",
+            "audit_id",
+            "timestamp",
+            "schema_version",
+            "reason_code",
         }
         assert set(d.keys()) == expected_keys
 
     def test_from_dict_type_coercion(self) -> None:
         # Integers and strings should be coerced correctly
         d = {
-            "step_id": 42,          # int -> str
+            "step_id": 42,  # int -> str
             "chain_id": "c",
             "operation_name": "op",
             "decision": "halt",
-            "cost_usd": "0.5",      # str -> float
-            "tokens": "100",        # str -> int
+            "cost_usd": "0.5",  # str -> float
+            "tokens": "100",  # str -> int
             "duration_ms": 10,
             "policy_hash": "b" * 64,
             "audit_id": "x",
@@ -80,9 +90,15 @@ class TestStepOutcome:
     def test_from_dict_missing_timestamp_defaults_to_current_time(self) -> None:
         before = time.time()
         d = {
-            "step_id": "s", "chain_id": "c", "operation_name": "op",
-            "decision": "allow", "cost_usd": 0.0, "tokens": 0,
-            "duration_ms": 0.0, "policy_hash": "a" * 64, "audit_id": "u",
+            "step_id": "s",
+            "chain_id": "c",
+            "operation_name": "op",
+            "decision": "allow",
+            "cost_usd": 0.0,
+            "tokens": 0,
+            "duration_ms": 0.0,
+            "policy_hash": "a" * 64,
+            "audit_id": "u",
         }
         outcome = StepOutcome.from_dict(d)
         after = time.time()
@@ -92,16 +108,30 @@ class TestStepOutcome:
     def test_default_timestamp_is_recent(self) -> None:
         before = time.time()
         outcome = StepOutcome(
-            step_id="s", chain_id="c", operation_name="op",
-            decision="allow", cost_usd=0.0, tokens=0,
-            duration_ms=0.0, policy_hash="a" * 64, audit_id="u",
+            step_id="s",
+            chain_id="c",
+            operation_name="op",
+            decision="allow",
+            cost_usd=0.0,
+            tokens=0,
+            duration_ms=0.0,
+            policy_hash="a" * 64,
+            audit_id="u",
         )
         after = time.time()
         assert before <= outcome.timestamp <= after
 
-    @pytest.mark.parametrize("decision", [
-        "allow", "halt", "degrade", "retry", "quarantine", "queue",
-    ])
+    @pytest.mark.parametrize(
+        "decision",
+        [
+            "allow",
+            "halt",
+            "degrade",
+            "retry",
+            "quarantine",
+            "queue",
+        ],
+    )
     def test_all_decision_values_accepted(self, decision: str) -> None:
         outcome = self._make(decision=decision)  # type: ignore[arg-type]
         assert outcome.decision == decision
@@ -156,8 +186,14 @@ class TestPolicyDecision:
         pd = self._make()
         d = pd.to_dict()
         expected_keys = {
-            "decision_id", "policy_id", "policy_hash", "rule_matched",
-            "verdict", "reason", "context", "timestamp",
+            "decision_id",
+            "policy_id",
+            "policy_hash",
+            "rule_matched",
+            "verdict",
+            "reason",
+            "context",
+            "timestamp",
         }
         assert set(d.keys()) == expected_keys
 
@@ -175,8 +211,12 @@ class TestPolicyDecision:
 
     def test_from_dict_missing_context_defaults_to_empty(self) -> None:
         d = {
-            "decision_id": "d", "policy_id": "p", "policy_hash": "c" * 64,
-            "rule_matched": "r", "verdict": "HALT", "reason": "over limit",
+            "decision_id": "d",
+            "policy_id": "p",
+            "policy_hash": "c" * 64,
+            "rule_matched": "r",
+            "verdict": "HALT",
+            "reason": "over limit",
         }
         pd = PolicyDecision.from_dict(d)
         assert pd.context == {}
@@ -184,8 +224,12 @@ class TestPolicyDecision:
     def test_from_dict_missing_timestamp_defaults_to_current_time(self) -> None:
         before = time.time()
         d = {
-            "decision_id": "d", "policy_id": "p", "policy_hash": "c" * 64,
-            "rule_matched": "r", "verdict": "DEGRADE", "reason": "r",
+            "decision_id": "d",
+            "policy_id": "p",
+            "policy_hash": "c" * 64,
+            "rule_matched": "r",
+            "verdict": "DEGRADE",
+            "reason": "r",
             "context": {},
         }
         pd = PolicyDecision.from_dict(d)
@@ -196,8 +240,13 @@ class TestPolicyDecision:
     def test_default_timestamp_is_recent(self) -> None:
         before = time.time()
         pd = PolicyDecision(
-            decision_id="d", policy_id="p", policy_hash="c" * 64,
-            rule_matched="r", verdict="ALLOW", reason="ok", context={},
+            decision_id="d",
+            policy_id="p",
+            policy_hash="c" * 64,
+            rule_matched="r",
+            verdict="ALLOW",
+            reason="ok",
+            context={},
         )
         after = time.time()
         assert before <= pd.timestamp <= after
@@ -224,27 +273,44 @@ class TestStepOutcomeAdversarial:
         # CP schema is a pure dataclass -- no validation at this layer.
         # Enforcement is the kernel's job. Verify it stores without raising.
         outcome = StepOutcome(
-            step_id="s", chain_id="c", operation_name="op",
+            step_id="s",
+            chain_id="c",
+            operation_name="op",
             decision="garbage_value",  # type: ignore[arg-type]
-            cost_usd=0.0, tokens=0, duration_ms=0.0,
-            policy_hash="a" * 64, audit_id="u",
+            cost_usd=0.0,
+            tokens=0,
+            duration_ms=0.0,
+            policy_hash="a" * 64,
+            audit_id="u",
         )
         d = outcome.to_dict()
         assert d["decision"] == "garbage_value"
 
     def test_negative_cost_roundtrips(self) -> None:
         outcome = StepOutcome(
-            step_id="s", chain_id="c", operation_name="op",
-            decision="allow", cost_usd=-1.5, tokens=0,
-            duration_ms=0.0, policy_hash="a" * 64, audit_id="u",
+            step_id="s",
+            chain_id="c",
+            operation_name="op",
+            decision="allow",
+            cost_usd=-1.5,
+            tokens=0,
+            duration_ms=0.0,
+            policy_hash="a" * 64,
+            audit_id="u",
         )
         assert StepOutcome.from_dict(outcome.to_dict()).cost_usd == -1.5
 
     def test_from_dict_with_extra_keys_ignored(self) -> None:
         d = {
-            "step_id": "s", "chain_id": "c", "operation_name": "op",
-            "decision": "allow", "cost_usd": 0.0, "tokens": 0,
-            "duration_ms": 0.0, "policy_hash": "a" * 64, "audit_id": "u",
+            "step_id": "s",
+            "chain_id": "c",
+            "operation_name": "op",
+            "decision": "allow",
+            "cost_usd": 0.0,
+            "tokens": 0,
+            "duration_ms": 0.0,
+            "policy_hash": "a" * 64,
+            "audit_id": "u",
             "unknown_future_field": "ignored",
         }
         # Extra keys must not crash from_dict (forward compat)
@@ -255,24 +321,39 @@ class TestStepOutcomeAdversarial:
 class TestPolicyDecisionAdversarial:
     def test_empty_reason_allowed(self) -> None:
         pd = PolicyDecision(
-            decision_id="d", policy_id="p", policy_hash="c" * 64,
-            rule_matched="r", verdict="ALLOW", reason="", context={},
+            decision_id="d",
+            policy_id="p",
+            policy_hash="c" * 64,
+            rule_matched="r",
+            verdict="ALLOW",
+            reason="",
+            context={},
         )
         assert pd.reason == ""
 
     def test_empty_policy_hash_allowed(self) -> None:
         # Schema layer does not validate hash format -- that is the hasher's job.
         pd = PolicyDecision(
-            decision_id="d", policy_id="p", policy_hash="",
-            rule_matched="r", verdict="ALLOW", reason="ok", context={},
+            decision_id="d",
+            policy_id="p",
+            policy_hash="",
+            rule_matched="r",
+            verdict="ALLOW",
+            reason="ok",
+            context={},
         )
         assert PolicyDecision.from_dict(pd.to_dict()).policy_hash == ""
 
     def test_very_large_context_roundtrips(self) -> None:
         ctx = {f"k{i}": i for i in range(1000)}
         pd = PolicyDecision(
-            decision_id="d", policy_id="p", policy_hash="c" * 64,
-            rule_matched="r", verdict="DEGRADE", reason="r", context=ctx,
+            decision_id="d",
+            policy_id="p",
+            policy_hash="c" * 64,
+            rule_matched="r",
+            verdict="DEGRADE",
+            reason="r",
+            context=ctx,
         )
         restored = PolicyDecision.from_dict(pd.to_dict())
         assert len(restored.context) == 1000

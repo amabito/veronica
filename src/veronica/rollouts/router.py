@@ -1,5 +1,6 @@
 # src/veronica/rollouts/router.py
 """FastAPI router for rollout pipeline endpoints."""
+
 from __future__ import annotations
 
 import logging
@@ -91,7 +92,9 @@ def _get_rollout_or_404(request: Request, rollout_id: str) -> Rollout:
     return rollout
 
 
-def _do_transition(request: Request, rollout_id: str, target: RolloutState, actor: str) -> Rollout:
+def _do_transition(
+    request: Request, rollout_id: str, target: RolloutState, actor: str
+) -> Rollout:
     rollout_registry = request.app.state.rollout_registry
     try:
         return rollout_registry.transition(rollout_id, target, actor)
@@ -106,8 +109,12 @@ def _do_transition(request: Request, rollout_id: str, target: RolloutState, acto
 # ---------------------------------------------------------------------------
 
 
-@router.post("", status_code=201, response_model=RolloutResponse, summary="Create rollout")
-async def create_rollout(body: CreateRolloutRequest, request: Request) -> RolloutResponse:
+@router.post(
+    "", status_code=201, response_model=RolloutResponse, summary="Create rollout"
+)
+async def create_rollout(
+    body: CreateRolloutRequest, request: Request
+) -> RolloutResponse:
     """Create a new rollout in DRAFT state."""
     policy = _build_policy(body.policy_config)
     rollout_registry = request.app.state.rollout_registry
@@ -124,7 +131,9 @@ async def list_rollouts(
 ) -> RolloutListResponse:
     """Return a paginated list of rollouts, optionally filtered by state."""
     rollout_registry = request.app.state.rollout_registry
-    items, total = rollout_registry.list_all(state_filter=state, page=page, per_page=per_page)
+    items, total = rollout_registry.list_all(
+        state_filter=state, page=page, per_page=per_page
+    )
     return RolloutListResponse(
         items=[_rollout_to_response(r) for r in items],
         total=total,
@@ -140,8 +149,12 @@ async def get_rollout(rollout_id: SafeRolloutId, request: Request) -> RolloutRes
     return _rollout_to_response(rollout)
 
 
-@router.post("/{rollout_id}/simulate", response_model=RolloutResponse, summary="Simulate rollout")
-async def simulate_rollout(rollout_id: SafeRolloutId, request: Request) -> RolloutResponse:
+@router.post(
+    "/{rollout_id}/simulate", response_model=RolloutResponse, summary="Simulate rollout"
+)
+async def simulate_rollout(
+    rollout_id: SafeRolloutId, request: Request
+) -> RolloutResponse:
     """Run PolicyDistributor simulation, store result, and transition to SIMULATED."""
     rollout = _get_rollout_or_404(request, rollout_id)
 
@@ -163,31 +176,45 @@ async def simulate_rollout(rollout_id: SafeRolloutId, request: Request) -> Rollo
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Rollout '{rollout_id}' not found")
     except InvalidTransitionError:
-        raise HTTPException(status_code=409, detail="Rollout is not in a simulatable state")
+        raise HTTPException(
+            status_code=409, detail="Rollout is not in a simulatable state"
+        )
 
-    rollout = _do_transition(request, rollout_id, RolloutState.SIMULATED, actor="system")
+    rollout = _do_transition(
+        request, rollout_id, RolloutState.SIMULATED, actor="system"
+    )
     return _rollout_to_response(rollout)
 
 
-@router.post("/{rollout_id}/approve", response_model=RolloutResponse, summary="Approve rollout")
+@router.post(
+    "/{rollout_id}/approve", response_model=RolloutResponse, summary="Approve rollout"
+)
 async def approve_rollout(
     rollout_id: SafeRolloutId, body: ActorRequest, request: Request
 ) -> RolloutResponse:
     """Transition rollout to APPROVED."""
-    rollout = _do_transition(request, rollout_id, RolloutState.APPROVED, actor=body.actor)
+    rollout = _do_transition(
+        request, rollout_id, RolloutState.APPROVED, actor=body.actor
+    )
     return _rollout_to_response(rollout)
 
 
-@router.post("/{rollout_id}/promote", response_model=RolloutResponse, summary="Promote rollout")
+@router.post(
+    "/{rollout_id}/promote", response_model=RolloutResponse, summary="Promote rollout"
+)
 async def promote_rollout(
     rollout_id: SafeRolloutId, body: ActorRequest, request: Request
 ) -> RolloutResponse:
     """Transition rollout to PROMOTED."""
-    rollout = _do_transition(request, rollout_id, RolloutState.PROMOTED, actor=body.actor)
+    rollout = _do_transition(
+        request, rollout_id, RolloutState.PROMOTED, actor=body.actor
+    )
     return _rollout_to_response(rollout)
 
 
-@router.post("/{rollout_id}/activate", response_model=RolloutResponse, summary="Activate rollout")
+@router.post(
+    "/{rollout_id}/activate", response_model=RolloutResponse, summary="Activate rollout"
+)
 async def activate_rollout(
     rollout_id: SafeRolloutId, body: ActorRequest, request: Request
 ) -> RolloutResponse:
@@ -219,7 +246,9 @@ async def activate_rollout(
     # failures) are swallowed with a warning -- the policy is already live so
     # returning 200 avoids a confusing failure after the core work is done.
     try:
-        rollout = _do_transition(request, rollout_id, RolloutState.ACTIVE, actor=body.actor)
+        rollout = _do_transition(
+            request, rollout_id, RolloutState.ACTIVE, actor=body.actor
+        )
     except HTTPException as exc:
         if exc.status_code in (404, 409):
             # 404: rollout deleted between registration and transition.
@@ -236,10 +265,14 @@ async def activate_rollout(
     return _rollout_to_response(rollout)
 
 
-@router.post("/{rollout_id}/revoke", response_model=RolloutResponse, summary="Revoke rollout")
+@router.post(
+    "/{rollout_id}/revoke", response_model=RolloutResponse, summary="Revoke rollout"
+)
 async def revoke_rollout(
     rollout_id: SafeRolloutId, body: ActorRequest, request: Request
 ) -> RolloutResponse:
     """Transition rollout to REVOKED (terminal state)."""
-    rollout = _do_transition(request, rollout_id, RolloutState.REVOKED, actor=body.actor)
+    rollout = _do_transition(
+        request, rollout_id, RolloutState.REVOKED, actor=body.actor
+    )
     return _rollout_to_response(rollout)

@@ -134,18 +134,26 @@ function buildParams() {
 // ---- Render rows ----
 function renderRows(items) {
   if (!items.length) {
-    tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No events match the current filters.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No events match the current filters.</td></tr>';
     return;
   }
 
   tbody.innerHTML = items.map(e => {
     const chain = escHtml(e.chain_id || '--');
     const op    = escHtml(e.operation_name || '--');
+    const replayHref = (e.chain_id && e.chain_id !== '--')
+      ? `/ui/replay?chain_id=${encodeURIComponent(e.chain_id)}`
+      : null;
+    const replayCell = replayHref
+      ? `<a class="replay-link" href="${replayHref}" title="Replay this chain" onclick="event.stopPropagation()">Replay</a>`
+      : '<span class="replay-link-na">--</span>';
+    const reasonCode = e.reason_code ? escHtml(e.reason_code) : '--';
     return `<tr data-chain="${chain}" data-step="${escHtml(e.step_id || '')}">
       <td class="td-ts">${formatTime(e.timestamp)}</td>
       <td class="td-chain" title="${chain}">${chain}</td>
       <td title="${op}" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${op}</td>
       <td>${decisionBadge(e.decision)}</td>
+      <td class="td-reason" title="${reasonCode}">${truncate(reasonCode, 20)}</td>
       <td class="td-cost">${formatCost(e.cost_usd)}</td>
       <td class="td-tokens">${(e.tokens || 0).toLocaleString()}</td>
       <td class="td-hash mono" title="${escHtml(e.policy_hash || '')}">${truncate(e.policy_hash, 8)}</td>

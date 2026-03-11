@@ -1,5 +1,6 @@
 # src/veronica/cost_model.py
 """VERONICA OS cost model -- static pricing table via veronica-core."""
+
 from __future__ import annotations
 
 from veronica_core.pricing import PRICING_TABLE, estimate_cost_usd
@@ -53,7 +54,9 @@ class TableCostModel:
             )
 
         cost = estimate_cost_usd(
-            model, self._default_tokens_in, self._default_tokens_out,
+            model,
+            self._default_tokens_in,
+            self._default_tokens_out,
         )
         return CostEstimate(
             estimated_usd=cost,

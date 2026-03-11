@@ -1,5 +1,6 @@
 # tests/test_os.py
 """Tests for veronica.os -- VeronicaOS orchestrator."""
+
 from __future__ import annotations
 
 import threading
@@ -21,9 +22,14 @@ def _intent(
     model: str = "gpt-4",
 ) -> StepIntent:
     return StepIntent(
-        step_id=step_id, request_id="r1", chain_id=chain_id,
-        kind="llm", model=model, tool_name=None,
-        timeout_ms=30_000, metadata={},
+        step_id=step_id,
+        request_id="r1",
+        chain_id=chain_id,
+        kind="llm",
+        model=model,
+        tool_name=None,
+        timeout_ms=30_000,
+        metadata={},
     )
 
 
@@ -33,17 +39,27 @@ def _snapshot(
     status: str = "ok",
 ) -> ContextSnapshot:
     node = NodeRecord(
-        node_id="n1", parent_id=None, kind="llm",
+        node_id="n1",
+        parent_id=None,
+        kind="llm",
         operation_name="test_op",
         start_ts=datetime.now(timezone.utc),
         end_ts=datetime.now(timezone.utc),
-        status=status, cost_usd=cost, retries_used=0,
+        status=status,
+        cost_usd=cost,
+        retries_used=0,
     )
     return ContextSnapshot(
-        chain_id=chain_id, request_id="r1", step_count=1,
-        cost_usd_accumulated=cost, retries_used=0,
-        aborted=False, abort_reason=None,
-        elapsed_ms=100.0, nodes=[node], events=[],
+        chain_id=chain_id,
+        request_id="r1",
+        step_count=1,
+        cost_usd_accumulated=cost,
+        retries_used=0,
+        aborted=False,
+        abort_reason=None,
+        elapsed_ms=100.0,
+        nodes=[node],
+        events=[],
     )
 
 
@@ -151,8 +167,7 @@ class TestTotalSpentUsdThreadSafety:
             for i in range(n_threads)
         ]
         snapshots = [
-            _snapshot(chain_id=f"c{i}", cost=cost_per_step)
-            for i in range(n_threads)
+            _snapshot(chain_id=f"c{i}", cost=cost_per_step) for i in range(n_threads)
         ]
 
         barrier = threading.Barrier(n_threads)
@@ -184,9 +199,12 @@ class TestTotalSpentUsdThreadSafety:
     def test_has_lock_attribute(self) -> None:
         """VeronicaOS must expose a threading.Lock (or RLock) for _total_spent_usd."""
         import threading as _threading
+
         vos = VeronicaOS()
         assert hasattr(vos, "_lock"), "VeronicaOS must have a _lock attribute"
-        assert isinstance(vos._lock, (_threading.Lock().__class__, _threading.RLock().__class__))
+        assert isinstance(
+            vos._lock, (_threading.Lock().__class__, _threading.RLock().__class__)
+        )
 
 
 class TestStepCounterIsolation:
@@ -200,18 +218,28 @@ class TestStepCounterIsolation:
         # Advance vos1 counter by 5 steps
         for i in range(5):
             intent = StepIntent(
-                step_id="", request_id="r1", chain_id="c1",
-                kind="llm", model="gpt-4", tool_name=None,
-                timeout_ms=30_000, metadata={},
+                step_id="",
+                request_id="r1",
+                chain_id="c1",
+                kind="llm",
+                model="gpt-4",
+                tool_name=None,
+                timeout_ms=30_000,
+                metadata={},
             )
             vos1._normalize_intent(intent)
             # Each call to _normalize_intent with empty step_id generates a new step id
 
         # vos2 should still start at step-1 (or its own fresh counter)
         intent2 = StepIntent(
-            step_id="", request_id="r2", chain_id="c2",
-            kind="llm", model="gpt-4", tool_name=None,
-            timeout_ms=30_000, metadata={},
+            step_id="",
+            request_id="r2",
+            chain_id="c2",
+            kind="llm",
+            model="gpt-4",
+            tool_name=None,
+            timeout_ms=30_000,
+            metadata={},
         )
         normalized2 = vos2._normalize_intent(intent2)
         # vos2 counter must be independent from vos1's counter
@@ -225,15 +253,22 @@ class TestStepCounterIsolation:
         """Counter must increment within the same instance."""
         vos = VeronicaOS()
         intent = StepIntent(
-            step_id="", request_id="r1", chain_id="c1",
-            kind="llm", model="gpt-4", tool_name=None,
-            timeout_ms=30_000, metadata={},
+            step_id="",
+            request_id="r1",
+            chain_id="c1",
+            kind="llm",
+            model="gpt-4",
+            tool_name=None,
+            timeout_ms=30_000,
+            metadata={},
         )
         n1 = vos._normalize_intent(intent)
         n2 = vos._normalize_intent(intent)
         num1 = int(n1.step_id.split("-")[1])
         num2 = int(n2.step_id.split("-")[1])
-        assert num2 == num1 + 1, f"Counter should increment: got {n1.step_id}, {n2.step_id}"
+        assert num2 == num1 + 1, (
+            f"Counter should increment: got {n1.step_id}, {n2.step_id}"
+        )
 
 
 class TestExpiresAtWarning:
@@ -261,9 +296,9 @@ class TestExpiresAtWarning:
         with caplog.at_level(logging.WARNING, logger="veronica.os"):
             vos.before_step(_intent())
 
-        assert any("expires_at" in msg or "expired" in msg.lower() for msg in caplog.messages), (
-            f"Expected warning about expires_at, got: {caplog.messages}"
-        )
+        assert any(
+            "expires_at" in msg or "expired" in msg.lower() for msg in caplog.messages
+        ), f"Expected warning about expires_at, got: {caplog.messages}"
 
     def test_non_expired_policy_no_warning(self, caplog) -> None:
         """before_step must not warn when policy.expires_at is in the future."""
@@ -287,22 +322,24 @@ class TestExpiresAtWarning:
             vos.before_step(_intent())
 
         expires_warnings = [
-            msg for msg in caplog.messages
-            if "expires_at" in msg or ("expired" in msg.lower() and "policy" in msg.lower())
+            msg
+            for msg in caplog.messages
+            if "expires_at" in msg
+            or ("expired" in msg.lower() and "policy" in msg.lower())
         ]
-        assert not expires_warnings, f"Unexpected expires_at warning: {expires_warnings}"
+        assert not expires_warnings, (
+            f"Unexpected expires_at warning: {expires_warnings}"
+        )
 
     def test_no_expires_at_no_warning(self, caplog) -> None:
         """before_step must not warn when policy.expires_at is None."""
         import logging
+
         vos = VeronicaOS()
         with caplog.at_level(logging.WARNING, logger="veronica.os"):
             vos.before_step(_intent())
 
-        expires_warnings = [
-            msg for msg in caplog.messages
-            if "expires_at" in msg
-        ]
+        expires_warnings = [msg for msg in caplog.messages if "expires_at" in msg]
         assert not expires_warnings
 
 
@@ -312,6 +349,7 @@ class TestVeronicaOSLifecycle:
     def test_close_calls_store_close(self) -> None:
         """VeronicaOS.close() must call store.close() when store has it."""
         from unittest.mock import MagicMock
+
         store = MagicMock()
         store.build_history.return_value = MemoryStore().build_history("c1")
         vos = VeronicaOS(store=store)
@@ -328,6 +366,7 @@ class TestVeronicaOSLifecycle:
     def test_context_manager_calls_close(self) -> None:
         """VeronicaOS must support 'with' statement."""
         from unittest.mock import patch
+
         vos = VeronicaOS()
         with patch.object(vos, "close") as mock_close:
             with vos:
@@ -343,6 +382,7 @@ class TestVeronicaOSLifecycle:
     def test_context_manager_calls_close_on_exception(self) -> None:
         """__exit__ must call close() even when body raises."""
         from unittest.mock import patch
+
         vos = VeronicaOS()
         with patch.object(vos, "close") as mock_close:
             try:
@@ -370,7 +410,9 @@ class TestChainRemainingUsd:
         handle_b = vos.before_step(_intent(step_id="sB", chain_id="chainB"))
         # chain B must not be limited to (global_budget - chainA_spend)
         # Its ceiling should be based on per-chain tracking, not global total
-        assert handle_b.policy.ceiling_usd > 0, "Chain B must not be blocked by chain A spend"
+        assert handle_b.policy.ceiling_usd > 0, (
+            "Chain B must not be blocked by chain A spend"
+        )
 
     def test_chain_spent_tracked_per_chain(self) -> None:
         """_chain_spent_usd must track spending per chain independently."""
@@ -396,9 +438,12 @@ class TestChainRemainingUsd:
         vos = VeronicaOS(request_budget_usd=10000.0)
 
         handles = [
-            vos.before_step(_intent(
-                step_id=f"s{i}", chain_id=f"chain{i % n_chains}",
-            ))
+            vos.before_step(
+                _intent(
+                    step_id=f"s{i}",
+                    chain_id=f"chain{i % n_chains}",
+                )
+            )
             for i in range(n_threads)
         ]
         snapshots = [
@@ -488,6 +533,7 @@ class TestLifecycleAdversarial:
     def test_close_idempotent(self) -> None:
         """Calling close() twice must not raise or double-close store."""
         from unittest.mock import MagicMock
+
         store = MagicMock()
         store.build_history.return_value = MemoryStore().build_history("c1")
         vos = VeronicaOS(store=store)
@@ -498,6 +544,7 @@ class TestLifecycleAdversarial:
     def test_close_when_store_close_raises_allows_retry(self) -> None:
         """If store.close() raises, close() must propagate and allow retry."""
         from unittest.mock import MagicMock
+
         store = MagicMock()
         store.build_history.return_value = MemoryStore().build_history("c1")
         store.close.side_effect = [RuntimeError("disk full"), None]
@@ -515,6 +562,7 @@ class TestLifecycleAdversarial:
     def test_nested_context_managers(self) -> None:
         """Nested 'with' on same instance must work (close is idempotent)."""
         from unittest.mock import MagicMock
+
         store = MagicMock()
         store.build_history.return_value = MemoryStore().build_history("c1")
         vos = VeronicaOS(store=store)
@@ -587,9 +635,14 @@ class TestStepCounterAdversarial:
         """50 VeronicaOS instances must all start at step-1."""
         instances = [VeronicaOS() for _ in range(50)]
         intent = StepIntent(
-            step_id="", request_id="r1", chain_id="c1",
-            kind="llm", model="gpt-4", tool_name=None,
-            timeout_ms=30_000, metadata={},
+            step_id="",
+            request_id="r1",
+            chain_id="c1",
+            kind="llm",
+            model="gpt-4",
+            tool_name=None,
+            timeout_ms=30_000,
+            metadata={},
         )
         for vos in instances:
             normalized = vos._normalize_intent(intent)
@@ -607,9 +660,14 @@ class TestStepCounterAdversarial:
         def worker():
             barrier.wait()
             intent = StepIntent(
-                step_id="", request_id="r1", chain_id="c1",
-                kind="llm", model="gpt-4", tool_name=None,
-                timeout_ms=30_000, metadata={},
+                step_id="",
+                request_id="r1",
+                chain_id="c1",
+                kind="llm",
+                model="gpt-4",
+                tool_name=None,
+                timeout_ms=30_000,
+                metadata={},
             )
             normalized = vos._normalize_intent(intent)
             with lock:

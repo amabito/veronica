@@ -1,5 +1,6 @@
 # src/veronica/buffered_emitter.py
 """VERONICA OS emitter -- BufferedEmitter with ring buffer and subscribers."""
+
 from __future__ import annotations
 
 import logging
@@ -41,7 +42,10 @@ class BufferedEmitter:
 
     def emit(self, event_type: str, payload: Mapping[str, Any]) -> None:
         with self._lock:
-            if self._buffer.maxlen is not None and len(self._buffer) == self._buffer.maxlen:
+            if (
+                self._buffer.maxlen is not None
+                and len(self._buffer) == self._buffer.maxlen
+            ):
                 self._dropped += 1
             self._buffer.append((event_type, payload))
             targets = list(self._subscribers.items())

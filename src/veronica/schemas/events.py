@@ -6,6 +6,7 @@ event pipeline. They are distinct from veronica-core's SafetyEvent
 (which is the kernel-level record). CP schemas add audit tracing fields
 (policy_hash, audit_id) required for compliance.
 """
+
 from __future__ import annotations
 
 import math
@@ -14,7 +15,9 @@ from dataclasses import dataclass, field
 from typing import Any, Literal, Mapping
 
 
-_VALID_DECISIONS = frozenset({"allow", "halt", "degrade", "retry", "quarantine", "queue", "unknown"})
+_VALID_DECISIONS = frozenset(
+    {"allow", "halt", "degrade", "retry", "quarantine", "queue", "unknown"}
+)
 _VALID_VERDICTS = frozenset({"ALLOW", "HALT", "DEGRADE"})
 
 
@@ -51,13 +54,17 @@ class StepOutcome:
     step_id: str
     chain_id: str
     operation_name: str
-    decision: Literal["allow", "halt", "degrade", "retry", "quarantine", "queue", "unknown"]
+    decision: Literal[
+        "allow", "halt", "degrade", "retry", "quarantine", "queue", "unknown"
+    ]
     cost_usd: float
     tokens: int
     duration_ms: float
     policy_hash: str
     audit_id: str
     timestamp: float = field(default_factory=time.time)
+    schema_version: str = "1.0"
+    reason_code: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to plain dict for storage or wire transfer."""
@@ -72,6 +79,8 @@ class StepOutcome:
             "policy_hash": self.policy_hash,
             "audit_id": self.audit_id,
             "timestamp": self.timestamp,
+            "schema_version": self.schema_version,
+            "reason_code": self.reason_code,
         }
 
     @classmethod
@@ -93,6 +102,8 @@ class StepOutcome:
             raise ValueError(f"Non-finite duration_ms: {duration_ms!r}")
         if not math.isfinite(timestamp):
             raise ValueError(f"Non-finite timestamp: {timestamp!r}")
+        raw_reason = data.get("reason_code")
+        reason_code = str(raw_reason) if raw_reason is not None else None
         return cls(
             step_id=str(data["step_id"]),
             chain_id=str(data["chain_id"]),
@@ -104,6 +115,8 @@ class StepOutcome:
             policy_hash=str(data["policy_hash"]),
             audit_id=str(data["audit_id"]),
             timestamp=timestamp,
+            schema_version=str(data.get("schema_version", "1.0")),
+            reason_code=reason_code,
         )
 
 

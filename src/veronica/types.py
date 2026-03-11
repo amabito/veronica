@@ -1,5 +1,6 @@
 # src/veronica/types.py
 """VERONICA OS data types -- all frozen dataclasses."""
+
 from __future__ import annotations
 
 import math
@@ -183,7 +184,9 @@ class PolicyConfig:
             )
         return ExecutionConfig(
             max_cost_usd=self.ceiling_usd,
-            max_steps=self.ceiling_steps if self.ceiling_steps is not None else _DEFAULT_STEPS,
+            max_steps=self.ceiling_steps
+            if self.ceiling_steps is not None
+            else _DEFAULT_STEPS,
             max_retries_total=_DEFAULT_RETRIES,
             timeout_ms=self.timeout_ms if self.timeout_ms is not None else 0,
         )
@@ -219,11 +222,13 @@ class OrgPolicy:
 
     def __post_init__(self) -> None:
         object.__setattr__(
-            self, "_blocked_models_cf",
+            self,
+            "_blocked_models_cf",
             frozenset(m.casefold() for m in self.blocked_models),
         )
         object.__setattr__(
-            self, "_blocked_tools_cf",
+            self,
+            "_blocked_tools_cf",
             frozenset(t.casefold() for t in self.blocked_tools),
         )
 
@@ -240,7 +245,10 @@ class OrgPolicy:
         changes: dict[str, Any] = {}
 
         if self.max_ceiling_usd is not None:
-            if not math.isfinite(desired.ceiling_usd) or desired.ceiling_usd > self.max_ceiling_usd:
+            if (
+                not math.isfinite(desired.ceiling_usd)
+                or desired.ceiling_usd > self.max_ceiling_usd
+            ):
                 changes["ceiling_usd"] = self.max_ceiling_usd
         if self.max_timeout_ms is not None:
             if desired.timeout_ms > self.max_timeout_ms:
@@ -258,4 +266,5 @@ class OrgPolicy:
             return desired
 
         from dataclasses import replace
+
         return replace(desired, **changes)

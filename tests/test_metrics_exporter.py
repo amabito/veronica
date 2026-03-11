@@ -1,5 +1,6 @@
 # tests/test_metrics_exporter.py
 """Tests for metrics_exporter -- Prometheus HTTP server helper."""
+
 from __future__ import annotations
 
 import veronica.metrics_exporter as mod
@@ -19,7 +20,8 @@ class TestStartMetricsServer:
             started_with["addr"] = addr
 
         monkeypatch.setattr(
-            "prometheus_client.start_http_server", fake_start,
+            "prometheus_client.start_http_server",
+            fake_start,
         )
         result = mod.start_metrics_server(port=9999)
         assert result is True
@@ -34,7 +36,8 @@ class TestStartMetricsServer:
             call_count += 1
 
         monkeypatch.setattr(
-            "prometheus_client.start_http_server", fake_start,
+            "prometheus_client.start_http_server",
+            fake_start,
         )
         mod.start_metrics_server(port=9998)
         mod.start_metrics_server(port=9998)
@@ -48,7 +51,8 @@ class TestStartMetricsServer:
             started_with["port"] = port
 
         monkeypatch.setattr(
-            "prometheus_client.start_http_server", fake_start,
+            "prometheus_client.start_http_server",
+            fake_start,
         )
         monkeypatch.setenv("VERONICA_METRICS_PORT", "8888")
         mod.start_metrics_server()
@@ -62,7 +66,8 @@ class TestStartMetricsServer:
             started_with["port"] = port
 
         monkeypatch.setattr(
-            "prometheus_client.start_http_server", fake_start,
+            "prometheus_client.start_http_server",
+            fake_start,
         )
         monkeypatch.delenv("VERONICA_METRICS_PORT", raising=False)
         mod.start_metrics_server()
@@ -71,6 +76,7 @@ class TestStartMetricsServer:
     def test_import_error_returns_false(self, monkeypatch) -> None:
         """Returns False when prometheus_client is not installed."""
         import builtins
+
         original_import = builtins.__import__
 
         def mock_import(name, *args, **kwargs):

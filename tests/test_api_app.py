@@ -1,5 +1,6 @@
 # tests/test_api_app.py
 """Tests for FastAPI application factory."""
+
 from __future__ import annotations
 
 import pytest
@@ -55,7 +56,10 @@ class TestErrorHandlers:
 
     def test_cors_headers_present(self, client: TestClient) -> None:
         resp = client.get("/health", headers={"Origin": "http://example.com"})
-        assert resp.headers.get("access-control-allow-origin") in ("*", "http://example.com")
+        assert resp.headers.get("access-control-allow-origin") in (
+            "*",
+            "http://example.com",
+        )
 
 
 class TestCLIModule:

@@ -1,5 +1,6 @@
 # src/veronica/metrics_subscriber.py
 """VERONICA OS observability -- Prometheus metrics subscriber."""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Mapping
@@ -7,10 +8,18 @@ from typing import TYPE_CHECKING, Any, Mapping
 if TYPE_CHECKING:
     from prometheus_client import CollectorRegistry
 
-_KNOWN_STAGES = frozenset({
-    "collector", "analyzer", "cost_model", "planner", "arbiter",
-    "store", "emit", "org_policy",
-})
+_KNOWN_STAGES = frozenset(
+    {
+        "collector",
+        "analyzer",
+        "cost_model",
+        "planner",
+        "arbiter",
+        "store",
+        "emit",
+        "org_policy",
+    }
+)
 
 _MICRO = 1_000_000
 
@@ -39,44 +48,56 @@ class MetricsSubscriber:
         prefix: str = "veronica",
         registry: "CollectorRegistry | None" = None,
     ) -> None:
-        from prometheus_client import CollectorRegistry as _CR, Counter, Histogram, REGISTRY
+        from prometheus_client import (
+            CollectorRegistry as _CR,
+            Counter,
+            Histogram,
+            REGISTRY,
+        )
+
         _ = _CR  # ensure import is not stripped
 
         registry = registry or REGISTRY
 
         self.steps_total = self._get_or_create(
-            registry, Counter,
+            registry,
+            Counter,
             f"{prefix}_steps_total",
             "Total steps executed",
             ["status", "kind", "recommendation", "risk_level"],
         )
         self.step_elapsed = self._get_or_create(
-            registry, Histogram,
+            registry,
+            Histogram,
             f"{prefix}_step_elapsed_ms",
             "Step elapsed time in ms",
             ["kind"],
             buckets=[10, 50, 100, 500, 1000, 5000, 10000],
         )
         self.stage_elapsed = self._get_or_create(
-            registry, Histogram,
+            registry,
+            Histogram,
             f"{prefix}_stage_elapsed_ms",
             "Pipeline stage elapsed time in ms",
             ["stage"],
             buckets=[1, 5, 10, 20, 50, 100, 250, 500, 1000, 5000],
         )
         self.cost_total = self._get_or_create(
-            registry, Counter,
+            registry,
+            Counter,
             f"{prefix}_cost_microusd_total",
             "Total cost in microusd (1 USD = 1,000,000)",
         )
         self.degrade_total = self._get_or_create(
-            registry, Counter,
+            registry,
+            Counter,
             f"{prefix}_degrade_total",
             "Total degraded steps",
             ["degrade_reason"],
         )
         self.denied_total = self._get_or_create(
-            registry, Counter,
+            registry,
+            Counter,
             f"{prefix}_denied_total",
             "Steps denied by org policy",
             ["kind"],
@@ -91,7 +112,9 @@ class MetricsSubscriber:
         return cls(name, documentation, labelnames, registry=registry, **kwargs)
 
     def __call__(
-        self, event_type: str, payload: Mapping[str, Any],
+        self,
+        event_type: str,
+        payload: Mapping[str, Any],
     ) -> None:
         """Callback for BufferedEmitter.subscribe()."""
         if event_type == "step_completed":

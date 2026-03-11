@@ -1,5 +1,6 @@
 # tests/test_api_simulate.py
 """Tests for POST /simulate endpoint."""
+
 from __future__ import annotations
 
 import time
@@ -17,7 +18,12 @@ _BASE_POLICY: dict = {
 }
 
 _CHEAP_STEP = {"kind": "llm", "cost_usd": 0.01, "tokens_out": 100, "elapsed_ms": 50.0}
-_EXPENSIVE_STEP = {"kind": "llm", "cost_usd": 5.0, "tokens_out": 1000, "elapsed_ms": 200.0}
+_EXPENSIVE_STEP = {
+    "kind": "llm",
+    "cost_usd": 5.0,
+    "tokens_out": 1000,
+    "elapsed_ms": 200.0,
+}
 
 
 @pytest.fixture()
@@ -36,13 +42,21 @@ class TestSimulateBasic:
         resp = client.post("/simulate", json={"policy": _BASE_POLICY, "steps": []})
         data = resp.json()
         required = {
-            "policy_hash", "total_steps", "steps_allowed", "steps_halted",
-            "total_cost_usd", "final_decision", "step_results", "store_unchanged",
+            "policy_hash",
+            "total_steps",
+            "steps_allowed",
+            "steps_halted",
+            "total_cost_usd",
+            "final_decision",
+            "step_results",
+            "store_unchanged",
         }
         assert required.issubset(data.keys())
 
     def test_store_unchanged_is_true(self, client: TestClient) -> None:
-        resp = client.post("/simulate", json={"policy": _BASE_POLICY, "steps": [_CHEAP_STEP]})
+        resp = client.post(
+            "/simulate", json={"policy": _BASE_POLICY, "steps": [_CHEAP_STEP]}
+        )
         assert resp.json()["store_unchanged"] is True
 
     def test_policy_hash_present(self, client: TestClient) -> None:
@@ -50,7 +64,9 @@ class TestSimulateBasic:
         assert resp.json()["policy_hash"] != ""
 
     def test_single_cheap_step_allowed(self, client: TestClient) -> None:
-        resp = client.post("/simulate", json={"policy": _BASE_POLICY, "steps": [_CHEAP_STEP]})
+        resp = client.post(
+            "/simulate", json={"policy": _BASE_POLICY, "steps": [_CHEAP_STEP]}
+        )
         data = resp.json()
         assert data["final_decision"] == "allow"
         assert data["steps_allowed"] == 1
@@ -118,11 +134,19 @@ class TestSimulateStepResults:
         assert len(data["step_results"]) == 2
 
     def test_step_result_shape(self, client: TestClient) -> None:
-        resp = client.post("/simulate", json={"policy": _BASE_POLICY, "steps": [_CHEAP_STEP]})
+        resp = client.post(
+            "/simulate", json={"policy": _BASE_POLICY, "steps": [_CHEAP_STEP]}
+        )
         step = resp.json()["step_results"][0]
         required = {
-            "step_index", "kind", "cost_usd", "tokens_out", "elapsed_ms",
-            "cumulative_cost_usd", "decision", "reason",
+            "step_index",
+            "kind",
+            "cost_usd",
+            "tokens_out",
+            "elapsed_ms",
+            "cumulative_cost_usd",
+            "decision",
+            "reason",
         }
         assert required.issubset(step.keys())
 
@@ -178,8 +202,12 @@ class TestSimulateSideEffects:
         policy_a = {**_BASE_POLICY, "chain_id": "chain-a", "ceiling_usd": 0.005}
         policy_b = {**_BASE_POLICY, "chain_id": "chain-b", "ceiling_usd": 10.0}
 
-        r_a = client.post("/simulate", json={"policy": policy_a, "steps": [_CHEAP_STEP]})
-        r_b = client.post("/simulate", json={"policy": policy_b, "steps": [_CHEAP_STEP]})
+        r_a = client.post(
+            "/simulate", json={"policy": policy_a, "steps": [_CHEAP_STEP]}
+        )
+        r_b = client.post(
+            "/simulate", json={"policy": policy_b, "steps": [_CHEAP_STEP]}
+        )
 
         assert r_a.json()["final_decision"] == "halt"
         assert r_b.json()["final_decision"] == "allow"

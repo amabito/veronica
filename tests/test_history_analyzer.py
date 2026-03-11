@@ -1,5 +1,6 @@
 # tests/test_history_analyzer.py
 """Tests for veronica.history_analyzer -- 6-pattern adaptive analyzer."""
+
 from __future__ import annotations
 
 
@@ -9,19 +10,35 @@ from veronica.types import HistoryView, StepIntent, StepOutcome
 
 def _intent(model: str = "gpt-4") -> StepIntent:
     return StepIntent(
-        step_id="s1", request_id="r1", chain_id="c1",
-        kind="llm", model=model, tool_name=None,
-        timeout_ms=30000, metadata={},
+        step_id="s1",
+        request_id="r1",
+        chain_id="c1",
+        kind="llm",
+        model=model,
+        tool_name=None,
+        timeout_ms=30000,
+        metadata={},
     )
 
 
-def _outcome(status: str = "ok", cost: float = 0.01, elapsed_ms: float = 100.0) -> StepOutcome:
+def _outcome(
+    status: str = "ok", cost: float = 0.01, elapsed_ms: float = 100.0
+) -> StepOutcome:
     import time
+
     return StepOutcome(
-        step_id="s1", request_id="r1", chain_id="c1",
-        kind="llm", status=status, cost_usd=cost,
-        tokens_in=100, tokens_out=50, elapsed_ms=elapsed_ms,
-        model="gpt-4", events=(), timestamp_ms=int(time.time() * 1000),
+        step_id="s1",
+        request_id="r1",
+        chain_id="c1",
+        kind="llm",
+        status=status,
+        cost_usd=cost,
+        tokens_in=100,
+        tokens_out=50,
+        elapsed_ms=elapsed_ms,
+        model="gpt-4",
+        events=(),
+        timestamp_ms=int(time.time() * 1000),
     )
 
 
@@ -56,7 +73,9 @@ class TestHaltTighten:
         kinds = [s.kind for s in result.signals]
         assert "halt_tighten" in kinds
         assert result.recommendation == "tighten"
-        assert any(s.severity == "critical" for s in result.signals if s.kind == "halt_tighten")
+        assert any(
+            s.severity == "critical" for s in result.signals if s.kind == "halt_tighten"
+        )
 
     def test_error_outcome_emits_warning(self) -> None:
         analyzer = HistoryAnalyzer()
@@ -77,7 +96,8 @@ class TestCleanLoosen:
     def test_loosen_requires_success_streak_and_headroom(self) -> None:
         analyzer = HistoryAnalyzer()
         result = analyzer.analyze(
-            _intent(), _outcome(status="ok"),
+            _intent(),
+            _outcome(status="ok"),
             _history(success_streak=3, budget_headroom_ratio=0.6),
         )
         kinds = [s.kind for s in result.signals]
@@ -87,7 +107,8 @@ class TestCleanLoosen:
     def test_no_loosen_with_low_streak(self) -> None:
         analyzer = HistoryAnalyzer()
         result = analyzer.analyze(
-            _intent(), _outcome(status="ok"),
+            _intent(),
+            _outcome(status="ok"),
             _history(success_streak=2, budget_headroom_ratio=0.6),
         )
         kinds = [s.kind for s in result.signals]
@@ -96,7 +117,8 @@ class TestCleanLoosen:
     def test_no_loosen_with_low_headroom(self) -> None:
         analyzer = HistoryAnalyzer()
         result = analyzer.analyze(
-            _intent(), _outcome(status="ok"),
+            _intent(),
+            _outcome(status="ok"),
             _history(success_streak=5, budget_headroom_ratio=0.3),
         )
         kinds = [s.kind for s in result.signals]
@@ -172,7 +194,9 @@ class TestLoopDetection:
     def test_high_loop_score(self) -> None:
         analyzer = HistoryAnalyzer()
         result = analyzer.analyze(
-            _intent(), _outcome(), _history(loop_score=0.8),
+            _intent(),
+            _outcome(),
+            _history(loop_score=0.8),
         )
         kinds = [s.kind for s in result.signals]
         assert "loop_detection" in kinds
@@ -180,7 +204,9 @@ class TestLoopDetection:
     def test_low_loop_score(self) -> None:
         analyzer = HistoryAnalyzer()
         result = analyzer.analyze(
-            _intent(), _outcome(), _history(loop_score=0.3),
+            _intent(),
+            _outcome(),
+            _history(loop_score=0.3),
         )
         kinds = [s.kind for s in result.signals]
         assert "loop_detection" not in kinds
@@ -214,7 +240,9 @@ class TestSignalComposition:
         analyzer = HistoryAnalyzer()
         # halted + depth=10 -> multiple critical signals
         result = analyzer.analyze(
-            _intent(), _outcome(status="halted"), _history(depth=10),
+            _intent(),
+            _outcome(status="halted"),
+            _history(depth=10),
         )
         assert result.risk_level == "critical"
 
@@ -222,14 +250,17 @@ class TestSignalComposition:
         # halt > tighten > loosen > continue
         analyzer = HistoryAnalyzer()
         result = analyzer.analyze(
-            _intent(), _outcome(status="halted"), _history(depth=10),
+            _intent(),
+            _outcome(status="halted"),
+            _history(depth=10),
         )
         assert result.recommendation == "halt"
 
     def test_continue_when_no_signals(self) -> None:
         analyzer = HistoryAnalyzer()
         result = analyzer.analyze(
-            _intent(), _outcome(status="ok"),
+            _intent(),
+            _outcome(status="ok"),
             _history(depth=2, success_streak=1),
         )
         assert result.recommendation == "continue"

@@ -1,11 +1,12 @@
 # src/veronica/planner.py
 """VERONICA OS planner -- SimplePlanner with 3 ceiling adjustment rules."""
+
 from __future__ import annotations
 
 from veronica.types import AnalysisResult, BudgetState, CostEstimate, DesiredPolicy
 
 _TIGHTEN_FACTOR = 0.90  # -10%
-_LOOSEN_FACTOR = 1.05   # +5%
+_LOOSEN_FACTOR = 1.05  # +5%
 _DEFAULT_STEPS = 100
 _DEFAULT_TOKENS_OUT = 50_000
 

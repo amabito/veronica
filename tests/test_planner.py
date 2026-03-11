@@ -1,5 +1,6 @@
 # tests/test_planner.py
 """Tests for veronica.planner -- SimplePlanner."""
+
 from __future__ import annotations
 
 import pytest
@@ -10,8 +11,10 @@ from veronica.types import AnalysisResult, BudgetState, CostEstimate
 
 def _cost(usd: float = 0.01) -> CostEstimate:
     return CostEstimate(
-        estimated_usd=usd, confidence=0.7,
-        model_used="gpt-4", basis="pricing_table",
+        estimated_usd=usd,
+        confidence=0.7,
+        model_used="gpt-4",
+        basis="pricing_table",
     )
 
 

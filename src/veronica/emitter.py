@@ -1,5 +1,6 @@
 # src/veronica/emitter.py
 """VERONICA OS emitter -- NullEmitter (no-op)."""
+
 from __future__ import annotations
 
 import logging

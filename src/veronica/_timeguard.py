@@ -4,6 +4,7 @@
 Runs a callable and checks if it exceeded its budget AFTER completion.
 Does NOT kill threads -- just detects overruns for DEGRADE logic.
 """
+
 from __future__ import annotations
 
 import time

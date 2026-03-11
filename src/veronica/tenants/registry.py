@@ -106,7 +106,9 @@ class TenantRegistry:
     def get_children(self, tenant_id: str) -> list[TenantNode]:
         """Return copies of direct children of the given tenant."""
         with self._lock:
-            return [deepcopy(t) for t in self._tenants.values() if t.parent_id == tenant_id]
+            return [
+                deepcopy(t) for t in self._tenants.values() if t.parent_id == tenant_id
+            ]
 
     def get_ancestors(self, tenant_id: str) -> list[TenantNode]:
         """Return ancestors of the given tenant, root first (excludes self).

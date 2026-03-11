@@ -1,5 +1,6 @@
 # src/veronica/api/app.py
 """FastAPI application factory for the Veronica control-plane API."""
+
 from __future__ import annotations
 
 import logging
@@ -26,6 +27,7 @@ def _get_version() -> str:
     """Return veronica version via deferred import to avoid circular imports."""
     try:
         from veronica import __version__
+
         return __version__
     except Exception:
         return "unknown"
@@ -34,7 +36,30 @@ def _get_version() -> str:
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Initialize and teardown shared resources."""
-    store = MemoryStore()
+    database_url = os.environ.get("VERONICA_DATABASE_URL", "")
+    pg_store = None
+    if database_url:
+        try:
+            from veronica.pg_store import PgStore
+
+            pg_store = PgStore(dsn=database_url)
+            store = pg_store
+            logger.info("Veronica API using PostgreSQL store")
+        except ImportError:
+            logger.warning(
+                "VERONICA_DATABASE_URL is set but psycopg/psycopg_pool is not installed. "
+                "Falling back to MemoryStore. Install with: pip install veronica[postgres]"
+            )
+            store: MemoryStore = MemoryStore()
+        except Exception:
+            logger.exception(
+                "Failed to connect to PostgreSQL (%s). Falling back to MemoryStore.",
+                database_url,
+            )
+            store = MemoryStore()
+    else:
+        store = MemoryStore()
+
     distributor = PolicyDistributor()
     ingestor = EventIngestor()
     registry = PolicyRegistry(distributor)
@@ -48,8 +73,23 @@ async def _lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     app.state.tenant_registry = tenant_registry
     app.state.rollout_registry = rollout_registry
 
+    # Fail-closed startup validation: require VERONICA_API_KEY unless auth is disabled.
+    auth_disabled = os.environ.get("VERONICA_AUTH_DISABLED", "") == "1"
+    api_key_set = bool(os.environ.get("VERONICA_API_KEY", "").strip())
+    if not auth_disabled and not api_key_set:
+        logger.critical(
+            "VERONICA_API_KEY is not set and VERONICA_AUTH_DISABLED is not 1. "
+            "The API is running without authentication. "
+            "Set VERONICA_API_KEY or VERONICA_AUTH_DISABLED=1 to suppress this warning."
+        )
+        app.state.startup_valid = False
+    else:
+        app.state.startup_valid = True
+
     logger.info("Veronica API started")
     yield
+    if pg_store is not None:
+        pg_store.close()
     logger.info("Veronica API shutting down")
 
 
@@ -58,8 +98,10 @@ def create_app() -> FastAPI:
     from veronica.api.routes import events as events_router
     from veronica.api.routes import export as export_router
     from veronica.api.routes import health as health_router
+    from veronica.api.routes import incidents as incidents_router
     from veronica.api.routes import policies as policies_router
     from veronica.api.routes import replay as replay_router
+    from veronica.api.routes import runs as runs_router
     from veronica.api.routes import simulate as simulate_router
     from veronica.api.routes import tenants as tenants_router
     from veronica.rollouts import router as rollouts_router_module
@@ -79,7 +121,10 @@ def create_app() -> FastAPI:
             {"name": "policies", "description": "Policy CRUD and versioned updates"},
             {"name": "simulate", "description": "Side-effect-free policy simulation"},
             {"name": "events", "description": "Paginated, filterable event audit log"},
-            {"name": "export", "description": "Full JSON export for backup and migration"},
+            {
+                "name": "export",
+                "description": "Full JSON export for backup and migration",
+            },
             {
                 "name": "rollouts",
                 "description": (
@@ -96,7 +141,9 @@ def create_app() -> FastAPI:
     _cors_env = os.environ.get("VERONICA_CORS_ORIGINS", "")
     if _cors_env and _cors_env != "*":
         # Explicit origin list with credentials enabled
-        _cors_origins: list[str] = [o.strip() for o in _cors_env.split(",") if o.strip()]
+        _cors_origins: list[str] = [
+            o.strip() for o in _cors_env.split(",") if o.strip()
+        ]
         _cors_credentials = True
     else:
         # Default or explicit wildcard -- credentials must be disabled (browser security requirement)
@@ -112,17 +159,27 @@ def create_app() -> FastAPI:
     )
 
     @app.exception_handler(HTTPException)
-    async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+    async def http_exception_handler(
+        request: Request, exc: HTTPException
+    ) -> JSONResponse:
         return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
     @app.exception_handler(Exception)
-    async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    async def generic_exception_handler(
+        request: Request, exc: Exception
+    ) -> JSONResponse:
         logger.exception("Unhandled exception: %s", exc)
-        detail = str(exc) if os.environ.get("VERONICA_DEBUG") == "1" else "Internal server error"
+        detail = (
+            str(exc)
+            if os.environ.get("VERONICA_DEBUG") == "1"
+            else "Internal server error"
+        )
         return JSONResponse(status_code=500, content={"detail": detail})
 
     app.include_router(health_router.router)
     app.include_router(events_router.router)
+    app.include_router(runs_router.router)
+    app.include_router(incidents_router.router)
     app.include_router(policies_router.router)
     app.include_router(simulate_router.router)
     app.include_router(replay_router.router)

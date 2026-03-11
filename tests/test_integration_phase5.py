@@ -1,5 +1,6 @@
 # tests/test_integration_phase5.py
 """Integration tests -- tenant + rollout + replay E2E flows."""
+
 from __future__ import annotations
 
 import time
@@ -169,10 +170,14 @@ class TestMultipleTenantsWithRollouts:
         assert r.json()["parent_id"] == org_id
 
         # Create rollouts for both, advance to different states
-        org_rollout = _activate_rollout(client, _make_policy(chain_id=chain_org), actor="org-admin")
+        org_rollout = _activate_rollout(
+            client, _make_policy(chain_id=chain_org), actor="org-admin"
+        )
         assert org_rollout["state"] == "active"
 
-        team_rollout = _activate_rollout(client, _make_policy(chain_id=chain_team), actor="team-admin")
+        team_rollout = _activate_rollout(
+            client, _make_policy(chain_id=chain_team), actor="team-admin"
+        )
         assert team_rollout["state"] == "active"
 
         # Both policies in export
@@ -273,9 +278,13 @@ class TestConcurrentRolloutsForSameChain:
         policy = _make_policy(chain_id=chain_id)
 
         # Create two rollouts for the same chain
-        r1 = client.post("/rollouts", json={"policy_config": policy, "created_by": "user1"})
+        r1 = client.post(
+            "/rollouts", json={"policy_config": policy, "created_by": "user1"}
+        )
         assert r1.status_code == 201, r1.text
-        r2 = client.post("/rollouts", json={"policy_config": policy, "created_by": "user2"})
+        r2 = client.post(
+            "/rollouts", json={"policy_config": policy, "created_by": "user2"}
+        )
         assert r2.status_code == 201, r2.text
 
         id1 = r1.json()["id"]
@@ -393,12 +402,16 @@ class TestFullLifecycleWithReplay:
         assert r.json()["state"] == "approved"
 
         # Step 5: promote
-        r = client.post(f"/rollouts/{rollout_id}/promote", json={"actor": "release-bot"})
+        r = client.post(
+            f"/rollouts/{rollout_id}/promote", json={"actor": "release-bot"}
+        )
         assert r.status_code == 200, r.text
         assert r.json()["state"] == "promoted"
 
         # Step 6: activate -- registers policy
-        r = client.post(f"/rollouts/{rollout_id}/activate", json={"actor": "release-bot"})
+        r = client.post(
+            f"/rollouts/{rollout_id}/activate", json={"actor": "release-bot"}
+        )
         assert r.status_code == 200, r.text
         assert r.json()["state"] == "active"
 

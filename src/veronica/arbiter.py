@@ -1,5 +1,6 @@
 # src/veronica/arbiter.py
 """VERONICA OS arbiter -- PassthroughArbiter."""
+
 from __future__ import annotations
 
 import time

@@ -1,5 +1,6 @@
 # tests/test_policy_hash_audit.py
 """Tests for policy_hash + audit_id in all kernel decisions (Task #4)."""
+
 from __future__ import annotations
 
 import threading
@@ -21,9 +22,14 @@ def _intent(
     kind: str = "llm",
 ) -> StepIntent:
     return StepIntent(
-        step_id=step_id, request_id=request_id, chain_id=chain_id,
-        kind=kind, model="gpt-4", tool_name=None,
-        timeout_ms=30_000, metadata={},
+        step_id=step_id,
+        request_id=request_id,
+        chain_id=chain_id,
+        kind=kind,
+        model="gpt-4",
+        tool_name=None,
+        timeout_ms=30_000,
+        metadata={},
     )
 
 
@@ -33,17 +39,27 @@ def _snapshot(
     request_id: str = "r1",
 ) -> ContextSnapshot:
     node = NodeRecord(
-        node_id="n1", parent_id=None, kind="llm",
+        node_id="n1",
+        parent_id=None,
+        kind="llm",
         operation_name="test_op",
         start_ts=datetime.now(timezone.utc),
         end_ts=datetime.now(timezone.utc),
-        status="ok", cost_usd=cost, retries_used=0,
+        status="ok",
+        cost_usd=cost,
+        retries_used=0,
     )
     return ContextSnapshot(
-        chain_id=chain_id, request_id=request_id, step_count=1,
-        cost_usd_accumulated=cost, retries_used=0,
-        aborted=False, abort_reason=None,
-        elapsed_ms=100.0, nodes=[node], events=[],
+        chain_id=chain_id,
+        request_id=request_id,
+        step_count=1,
+        cost_usd_accumulated=cost,
+        retries_used=0,
+        aborted=False,
+        abort_reason=None,
+        elapsed_ms=100.0,
+        nodes=[node],
+        events=[],
     )
 
 

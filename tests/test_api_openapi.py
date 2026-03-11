@@ -1,5 +1,6 @@
 # tests/test_api_openapi.py
 """Tests for OpenAPI spec auto-generation and /docs accessibility."""
+
 from __future__ import annotations
 
 import pytest
@@ -126,7 +127,9 @@ class TestOpenAPISchemas:
 
 
 class TestOpenAPIAuthExemption:
-    def test_openapi_json_exempt_from_auth(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_openapi_json_exempt_from_auth(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setenv("VERONICA_API_KEY", "secret")
         app = create_app()
         c = TestClient(app)

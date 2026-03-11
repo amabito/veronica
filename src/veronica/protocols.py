@@ -1,5 +1,6 @@
 # src/veronica/protocols.py
 """VERONICA OS protocols -- runtime_checkable interfaces for pipeline stages."""
+
 from __future__ import annotations
 
 from typing import Any, Mapping, Protocol, Sequence, runtime_checkable

@@ -39,15 +39,34 @@ function decisionBadge(decision) {
   return `<span class="badge ${cls}">${decision}</span>`;
 }
 
-function updateStats(events, policiesTotal) {
+function circuitStateBadge(state) {
+  if (!state || state === 'null' || state === 'None') return 'N/A';
+  const upper = state.toUpperCase();
+  if (upper === 'CLOSED') return 'CLOSED';
+  if (upper === 'HALF_OPEN') return 'HALF_OPEN';
+  if (upper === 'OPEN') return 'OPEN';
+  return state;
+}
+
+function updateStats(events, activeChains, circuitState) {
   const totalCost = events.reduce((s, e) => s + (e.cost_usd || 0), 0);
   const haltCount = events.filter(e => e.decision === 'halt').length;
   const degradeCount = events.filter(e => e.decision === 'degrade').length;
 
-  document.getElementById('stat-chains').textContent = policiesTotal;
+  document.getElementById('stat-chains').textContent = activeChains !== null ? activeChains : '--';
   document.getElementById('stat-cost').textContent = '$' + totalCost.toFixed(2);
   document.getElementById('stat-halts').textContent = haltCount;
   document.getElementById('stat-degrades').textContent = degradeCount;
+
+  const circuitEl = document.getElementById('stat-circuit');
+  if (circuitEl) {
+    const label = circuitStateBadge(circuitState);
+    circuitEl.textContent = label;
+    circuitEl.className = 'stat-value';
+    if (label === 'CLOSED') circuitEl.classList.add('success');
+    else if (label === 'HALF_OPEN') circuitEl.classList.add('warning');
+    else if (label === 'OPEN') circuitEl.classList.add('danger');
+  }
 }
 
 function updateTable(events) {
@@ -79,7 +98,8 @@ async function fetchData() {
   if (!key) return;
 
   let events = [];
-  let policiesTotal = 0;
+  let activeChains = null;
+  let circuitState = null;
 
   try {
     const evResp = await fetch('/events?limit=50', { headers: apiHeaders() });
@@ -95,16 +115,19 @@ async function fetchData() {
   }
 
   try {
-    const polResp = await fetch('/policies?per_page=1', { headers: apiHeaders() });
-    if (polResp.ok) {
-      const data = await polResp.json();
-      policiesTotal = data.total || 0;
+    // Fetch active_chains and circuit_state from /health (no auth required)
+    const healthResp = await fetch('/health');
+    if (healthResp.ok) {
+      const data = await healthResp.json();
+      const stats = data.stats || {};
+      activeChains = typeof stats.active_chains === 'number' ? stats.active_chains : null;
+      circuitState = stats.circuit_state || null;
     }
   } catch (err) {
-    // non-critical, proceed with 0
+    // non-critical
   }
 
-  updateStats(events, policiesTotal);
+  updateStats(events, activeChains, circuitState);
   updateTable(events);
   updateRefreshTime();
 }

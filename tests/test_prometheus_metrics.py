@@ -1,5 +1,6 @@
 # tests/test_prometheus_metrics.py
 """Tests for PrometheusSubscriber -- CP-level Prometheus metrics."""
+
 from __future__ import annotations
 
 import threading
@@ -9,7 +10,9 @@ from prometheus_client import CollectorRegistry
 from veronica.metrics import PrometheusSubscriber
 
 
-def _make_subscriber(prefix: str = "test") -> tuple[PrometheusSubscriber, CollectorRegistry]:
+def _make_subscriber(
+    prefix: str = "test",
+) -> tuple[PrometheusSubscriber, CollectorRegistry]:
     """Create an isolated PrometheusSubscriber for testing."""
     registry = CollectorRegistry()
     sub = PrometheusSubscriber(prefix=prefix, registry=registry)
@@ -260,7 +263,10 @@ class TestResilienceAdversarial:
 
     def test_none_values_use_unknown_label(self) -> None:
         sub, reg = _make_subscriber("res3")
-        sub("step_completed", _completed_payload(chain_id=None, policy_hash=None, status=None))
+        sub(
+            "step_completed",
+            _completed_payload(chain_id=None, policy_hash=None, status=None),
+        )
 
         val = reg.get_sample_value(
             "res3_step_completed_total",
@@ -293,7 +299,8 @@ class TestResilienceAdversarial:
             reg.get_sample_value(
                 "res5_step_completed_total",
                 {"chain_id": f"c{i}", "decision_type": "ok"},
-            ) or 0.0
+            )
+            or 0.0
             for i in range(3)
         )
         assert total == 30.0
@@ -307,9 +314,14 @@ class TestIntegrationWithVeronicaOS:
         from veronica.types import StepIntent
 
         intent = StepIntent(
-            step_id="s1", request_id="r1", chain_id="chain-audit",
-            kind="llm", model="gpt-4", tool_name=None,
-            timeout_ms=30_000, metadata={},
+            step_id="s1",
+            request_id="r1",
+            chain_id="chain-audit",
+            kind="llm",
+            model="gpt-4",
+            tool_name=None,
+            timeout_ms=30_000,
+            metadata={},
         )
 
         reg = CollectorRegistry()
@@ -319,20 +331,33 @@ class TestIntegrationWithVeronicaOS:
 
         vos = VeronicaOS(emitter=emitter)
         from datetime import datetime, timezone
-        from veronica_core.containment.execution_context import ContextSnapshot, NodeRecord
+        from veronica_core.containment.execution_context import (
+            ContextSnapshot,
+            NodeRecord,
+        )
 
         node = NodeRecord(
-            node_id="n1", parent_id=None, kind="llm",
+            node_id="n1",
+            parent_id=None,
+            kind="llm",
             operation_name="op",
             start_ts=datetime.now(timezone.utc),
             end_ts=datetime.now(timezone.utc),
-            status="ok", cost_usd=0.01, retries_used=0,
+            status="ok",
+            cost_usd=0.01,
+            retries_used=0,
         )
         snapshot = ContextSnapshot(
-            chain_id="chain-audit", request_id="r1", step_count=1,
-            cost_usd_accumulated=0.01, retries_used=0,
-            aborted=False, abort_reason=None,
-            elapsed_ms=100.0, nodes=[node], events=[],
+            chain_id="chain-audit",
+            request_id="r1",
+            step_count=1,
+            cost_usd_accumulated=0.01,
+            retries_used=0,
+            aborted=False,
+            abort_reason=None,
+            elapsed_ms=100.0,
+            nodes=[node],
+            events=[],
         )
 
         handle = vos.before_step(intent)

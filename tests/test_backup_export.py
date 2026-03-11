@@ -1,5 +1,6 @@
 # tests/test_backup_export.py
 """Tests for GET /export endpoint -- backup and JSON export."""
+
 from __future__ import annotations
 
 import time
@@ -11,7 +12,9 @@ from veronica.api.app import create_app
 from veronica.types import PolicyConfig
 
 
-def _make_policy(chain_id: str = "test-chain", ceiling_usd: float = 1.0) -> PolicyConfig:
+def _make_policy(
+    chain_id: str = "test-chain", ceiling_usd: float = 1.0
+) -> PolicyConfig:
     """Minimal valid PolicyConfig for testing."""
     return PolicyConfig(
         chain_id=chain_id,
@@ -60,7 +63,9 @@ class TestExportResponseStructure:
         assert isinstance(exported_at, (float, int))
         assert abs(exported_at - time.time()) < 5.0
 
-    def test_export_veronica_version_is_nonempty_string(self, client: TestClient) -> None:
+    def test_export_veronica_version_is_nonempty_string(
+        self, client: TestClient
+    ) -> None:
         body = client.get("/export").json()
         assert isinstance(body["veronica_version"], str)
         assert body["veronica_version"] != ""
@@ -76,7 +81,9 @@ class TestExportPolicies:
     def test_empty_registry_exports_empty_policies(self, client: TestClient) -> None:
         assert client.get("/export").json()["policies"] == []
 
-    def test_registered_policy_appears_in_export(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_registered_policy_appears_in_export(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setenv("VERONICA_AUTH_DISABLED", "1")
         app = create_app()
         with TestClient(app, raise_server_exceptions=False) as c:
@@ -84,14 +91,23 @@ class TestExportPolicies:
             body = c.get("/export").json()
         assert any(p["chain_id"] == "export-chain-1" for p in body["policies"])
 
-    def test_policy_export_has_required_fields(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_policy_export_has_required_fields(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setenv("VERONICA_AUTH_DISABLED", "1")
         app = create_app()
         with TestClient(app, raise_server_exceptions=False) as c:
             app.state.registry.register(_make_policy("field-check-chain"))
             body = c.get("/export").json()
         policy = body["policies"][0]
-        required = {"chain_id", "ceiling_usd", "on_exceed", "issued_at", "policy_hash", "version"}
+        required = {
+            "chain_id",
+            "ceiling_usd",
+            "on_exceed",
+            "issued_at",
+            "policy_hash",
+            "version",
+        }
         assert required.issubset(policy.keys())
 
     def test_policy_hash_is_sha256_hex(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -105,7 +121,9 @@ class TestExportPolicies:
         assert len(policy_hash) == 64
         int(policy_hash, 16)  # valid hex
 
-    def test_multiple_policies_all_exported(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_multiple_policies_all_exported(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setenv("VERONICA_AUTH_DISABLED", "1")
         app = create_app()
         with TestClient(app, raise_server_exceptions=False) as c:
@@ -185,7 +203,9 @@ class TestExportConsistency:
         t2 = client.get("/export").json()["exported_at"]
         assert t2 >= t1
 
-    def test_export_policy_on_exceed_value(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_export_policy_on_exceed_value(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setenv("VERONICA_AUTH_DISABLED", "1")
         app = create_app()
         with TestClient(app, raise_server_exceptions=False) as c:

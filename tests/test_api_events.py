@@ -1,5 +1,6 @@
 # tests/test_api_events.py
 """Tests for GET /events endpoint."""
+
 from __future__ import annotations
 
 import time
@@ -49,10 +50,26 @@ def client() -> Generator[TestClient, None, None]:
 @pytest.fixture()
 def populated_client() -> Generator[TestClient, None, None]:
     with _running_client() as (c, store):
-        store.put(_make_outcome(step_id="s1", chain_id="chain-a", decision="allow", timestamp=1000.0))
-        store.put(_make_outcome(step_id="s2", chain_id="chain-b", decision="halt", timestamp=2000.0))
-        store.put(_make_outcome(step_id="s3", chain_id="chain-a", decision="degrade", timestamp=3000.0))
-        store.put(_make_outcome(step_id="s4", chain_id="chain-b", decision="allow", timestamp=4000.0))
+        store.put(
+            _make_outcome(
+                step_id="s1", chain_id="chain-a", decision="allow", timestamp=1000.0
+            )
+        )
+        store.put(
+            _make_outcome(
+                step_id="s2", chain_id="chain-b", decision="halt", timestamp=2000.0
+            )
+        )
+        store.put(
+            _make_outcome(
+                step_id="s3", chain_id="chain-a", decision="degrade", timestamp=3000.0
+            )
+        )
+        store.put(
+            _make_outcome(
+                step_id="s4", chain_id="chain-b", decision="allow", timestamp=4000.0
+            )
+        )
         yield c
 
 
@@ -136,7 +153,9 @@ class TestEventsFiltering:
         assert resp.status_code == 400
         assert "detail" in resp.json()
 
-    def test_one_valid_one_invalid_decision_returns_400(self, populated_client: TestClient) -> None:
+    def test_one_valid_one_invalid_decision_returns_400(
+        self, populated_client: TestClient
+    ) -> None:
         resp = populated_client.get(
             "/events", params=[("decision", "allow"), ("decision", "bogus")]
         )
@@ -185,9 +204,16 @@ class TestEventsItemSchema:
         resp = populated_client.get("/events", params={"limit": 1})
         item = resp.json()["items"][0]
         required = {
-            "step_id", "chain_id", "operation_name", "decision",
-            "cost_usd", "tokens", "duration_ms", "policy_hash",
-            "audit_id", "timestamp",
+            "step_id",
+            "chain_id",
+            "operation_name",
+            "decision",
+            "cost_usd",
+            "tokens",
+            "duration_ms",
+            "policy_hash",
+            "audit_id",
+            "timestamp",
         }
         assert required.issubset(item.keys())
 

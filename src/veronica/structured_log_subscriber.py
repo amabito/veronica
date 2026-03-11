@@ -1,5 +1,6 @@
 # src/veronica/structured_log_subscriber.py
 """VERONICA OS observability -- structured JSON log subscriber."""
+
 from __future__ import annotations
 
 import json
@@ -33,7 +34,9 @@ class StructuredLogSubscriber:
         self._level = level
 
     def __call__(
-        self, event_type: str, payload: Mapping[str, Any],
+        self,
+        event_type: str,
+        payload: Mapping[str, Any],
     ) -> None:
         """Callback for BufferedEmitter.subscribe()."""
         if event_type == "step_completed":

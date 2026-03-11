@@ -7,6 +7,7 @@ Key is loaded from VERONICA_API_KEY env var. If unset:
     unauthenticated access (warning logged once).
   - Otherwise, returns 503 "API key not configured".
 """
+
 from __future__ import annotations
 
 import hmac

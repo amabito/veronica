@@ -1,5 +1,6 @@
 # tests/test_api_policies_update.py
 """Tests for PUT /policies/{id} endpoint."""
+
 from __future__ import annotations
 
 import threading
@@ -219,7 +220,9 @@ class TestAdversarialUpdate:
             with lock:
                 results.append(resp.status_code)
 
-        threads = [threading.Thread(target=do_update, args=(float(i),)) for i in range(5)]
+        threads = [
+            threading.Thread(target=do_update, args=(float(i),)) for i in range(5)
+        ]
         for t in threads:
             t.start()
         for t in threads:

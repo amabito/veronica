@@ -120,7 +120,9 @@ def _to_response(node: TenantNode) -> TenantResponse:
     )
 
 
-def _policy_to_response(tenant_id: str, policy: PolicyConfig) -> EffectivePolicyResponse:
+def _policy_to_response(
+    tenant_id: str, policy: PolicyConfig
+) -> EffectivePolicyResponse:
     return EffectivePolicyResponse(
         tenant_id=tenant_id,
         chain_id=policy.chain_id,
@@ -160,7 +162,9 @@ async def get_tenant(tenant_id: SafeTenantId, request: Request) -> TenantRespons
     return _to_response(node)
 
 
-@router.post("", response_model=TenantResponse, status_code=201, summary="Create tenant")
+@router.post(
+    "", response_model=TenantResponse, status_code=201, summary="Create tenant"
+)
 async def create_tenant(body: TenantCreateRequest, request: Request) -> TenantResponse:
     _validate_overrides(body.policy_overrides)
     registry = request.app.state.tenant_registry
@@ -215,7 +219,9 @@ async def delete_tenant(tenant_id: SafeTenantId, request: Request) -> Response:
     response_model=EffectivePolicyResponse,
     summary="Get effective policy for tenant (with inheritance)",
 )
-async def get_effective_policy(tenant_id: SafeTenantId, request: Request) -> EffectivePolicyResponse:
+async def get_effective_policy(
+    tenant_id: SafeTenantId, request: Request
+) -> EffectivePolicyResponse:
     registry = request.app.state.tenant_registry
     node = registry.get(tenant_id)
     if node is None:
@@ -229,6 +235,8 @@ async def get_effective_policy(tenant_id: SafeTenantId, request: Request) -> Eff
     try:
         effective = _resolver.resolve(tenant_id, registry, base_policy)
     except (ValueError, TypeError) as exc:
-        logger.warning("[get_effective_policy] resolver error for tenant %s: %s", tenant_id, exc)
+        logger.warning(
+            "[get_effective_policy] resolver error for tenant %s: %s", tenant_id, exc
+        )
         raise HTTPException(status_code=422, detail="Policy resolution failed")
     return _policy_to_response(tenant_id, effective)

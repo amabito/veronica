@@ -1,5 +1,6 @@
 # tests/test_rollouts.py
 """Tests for rollout pipeline endpoints (/rollouts)."""
+
 from __future__ import annotations
 
 import threading
@@ -25,7 +26,9 @@ def client() -> TestClient:
         yield c
 
 
-def _create(client: TestClient, policy: dict | None = None, created_by: str = "tester") -> dict:
+def _create(
+    client: TestClient, policy: dict | None = None, created_by: str = "tester"
+) -> dict:
     """Helper: create a rollout, assert 201, return JSON body."""
     body = {"policy_config": policy or _BASE_POLICY, "created_by": created_by}
     resp = client.post("/rollouts", json=body)
@@ -56,7 +59,15 @@ class TestCreateRollout:
 
     def test_create_response_shape(self, client: TestClient) -> None:
         data = _create(client)
-        required = {"id", "state", "created_by", "created_at", "updated_at", "history", "simulation_result"}
+        required = {
+            "id",
+            "state",
+            "created_by",
+            "created_at",
+            "updated_at",
+            "history",
+            "simulation_result",
+        }
         assert required.issubset(data.keys())
 
     def test_create_initial_state_is_draft(self, client: TestClient) -> None:
@@ -307,16 +318,36 @@ class TestNotFound:
         assert client.post(f"/rollouts/{_MISSING_UUID}/simulate").status_code == 404
 
     def test_approve_404(self, client: TestClient) -> None:
-        assert client.post(f"/rollouts/{_MISSING_UUID}/approve", json={"actor": "qa"}).status_code == 404
+        assert (
+            client.post(
+                f"/rollouts/{_MISSING_UUID}/approve", json={"actor": "qa"}
+            ).status_code
+            == 404
+        )
 
     def test_promote_404(self, client: TestClient) -> None:
-        assert client.post(f"/rollouts/{_MISSING_UUID}/promote", json={"actor": "ops"}).status_code == 404
+        assert (
+            client.post(
+                f"/rollouts/{_MISSING_UUID}/promote", json={"actor": "ops"}
+            ).status_code
+            == 404
+        )
 
     def test_activate_404(self, client: TestClient) -> None:
-        assert client.post(f"/rollouts/{_MISSING_UUID}/activate", json={"actor": "ops"}).status_code == 404
+        assert (
+            client.post(
+                f"/rollouts/{_MISSING_UUID}/activate", json={"actor": "ops"}
+            ).status_code
+            == 404
+        )
 
     def test_revoke_404(self, client: TestClient) -> None:
-        assert client.post(f"/rollouts/{_MISSING_UUID}/revoke", json={"actor": "admin"}).status_code == 404
+        assert (
+            client.post(
+                f"/rollouts/{_MISSING_UUID}/revoke", json={"actor": "admin"}
+            ).status_code
+            == 404
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -333,7 +364,9 @@ class TestConcurrentTransitions:
         lock = threading.Lock()
 
         def do_revoke() -> None:
-            resp = client.post(f"/rollouts/{rollout_id}/revoke", json={"actor": "admin"})
+            resp = client.post(
+                f"/rollouts/{rollout_id}/revoke", json={"actor": "admin"}
+            )
             with lock:
                 status_codes.append(resp.status_code)
 

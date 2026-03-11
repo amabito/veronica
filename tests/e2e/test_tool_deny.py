@@ -9,6 +9,7 @@ Verifies full stack integration when a tool call is denied:
 Uses real veronica-core ExecutionContext (not mocked).
 Uses OrgPolicy to block specific tools.
 """
+
 from __future__ import annotations
 
 import time
@@ -51,17 +52,27 @@ def _intent(
 
 def _snapshot(chain_id: str, request_id: str, cost: float = 0.0) -> ContextSnapshot:
     node = NodeRecord(
-        node_id="n1", parent_id=None, kind="tool",
+        node_id="n1",
+        parent_id=None,
+        kind="tool",
         operation_name="tool_call",
         start_ts=datetime.now(timezone.utc),
         end_ts=datetime.now(timezone.utc),
-        status="ok", cost_usd=cost, retries_used=0,
+        status="ok",
+        cost_usd=cost,
+        retries_used=0,
     )
     return ContextSnapshot(
-        chain_id=chain_id, request_id=request_id, step_count=1,
-        cost_usd_accumulated=cost, retries_used=0,
-        aborted=False, abort_reason=None,
-        elapsed_ms=10.0, nodes=[node], events=[],
+        chain_id=chain_id,
+        request_id=request_id,
+        step_count=1,
+        cost_usd_accumulated=cost,
+        retries_used=0,
+        aborted=False,
+        abort_reason=None,
+        elapsed_ms=10.0,
+        nodes=[node],
+        events=[],
     )
 
 
@@ -140,7 +151,10 @@ class TestToolDenyKernelLevel:
         from veronica_core.containment.execution_context import ExecutionConfig
 
         config = ExecutionConfig(
-            max_cost_usd=0.0, max_steps=0, max_retries_total=0, timeout_ms=0,
+            max_cost_usd=0.0,
+            max_steps=0,
+            max_retries_total=0,
+            timeout_ms=0,
         )
         metadata = ChainMetadata(request_id="r1", chain_id="c-kernel-halt")
         ctx = ExecutionContext(config=config, metadata=metadata)

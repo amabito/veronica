@@ -1,5 +1,6 @@
 # src/veronica/ui/router.py
 """FastAPI router for serving the Veronica web UI static files."""
+
 from __future__ import annotations
 
 from pathlib import Path

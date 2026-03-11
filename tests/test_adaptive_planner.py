@@ -1,5 +1,6 @@
 # tests/test_adaptive_planner.py
 """Tests for veronica.adaptive_planner -- error-class-aware ceiling adjustment."""
+
 from __future__ import annotations
 
 import pytest
@@ -13,15 +14,23 @@ def _analysis(
     risk_level: str = "nominal",
     signals: tuple = (),
 ) -> AnalysisResult:
-    return AnalysisResult(signals=signals, risk_level=risk_level, recommendation=recommendation)
+    return AnalysisResult(
+        signals=signals, risk_level=risk_level, recommendation=recommendation
+    )
 
 
 def _cost(estimated: float = 0.05) -> CostEstimate:
-    return CostEstimate(estimated_usd=estimated, confidence=0.8, model_used="gpt-4", basis="historical")
+    return CostEstimate(
+        estimated_usd=estimated, confidence=0.8, model_used="gpt-4", basis="historical"
+    )
 
 
 def _budget(remaining: float = 50.0) -> BudgetState:
-    return BudgetState(request_remaining_usd=remaining, chain_remaining_usd=remaining, window_remaining_steps=100)
+    return BudgetState(
+        request_remaining_usd=remaining,
+        chain_remaining_usd=remaining,
+        window_remaining_steps=100,
+    )
 
 
 class TestAdaptivePlanner:
@@ -32,19 +41,25 @@ class TestAdaptivePlanner:
 
     def test_tighten_halted_minus_50(self) -> None:
         planner = AdaptivePlanner(base_ceiling_usd=1.0)
-        halted_signals = (Signal(kind="halt_tighten", severity="critical", detail="halted"),)
+        halted_signals = (
+            Signal(kind="halt_tighten", severity="critical", detail="halted"),
+        )
         result = planner.plan(
             _analysis(recommendation="tighten", signals=halted_signals),
-            _cost(), _budget(),
+            _cost(),
+            _budget(),
         )
         assert result.ceiling_usd == pytest.approx(0.50)
 
     def test_tighten_error_minus_15(self) -> None:
         planner = AdaptivePlanner(base_ceiling_usd=1.0)
-        error_signals = (Signal(kind="halt_tighten", severity="warning", detail="error"),)
+        error_signals = (
+            Signal(kind="halt_tighten", severity="warning", detail="error"),
+        )
         result = planner.plan(
             _analysis(recommendation="tighten", signals=error_signals),
-            _cost(), _budget(),
+            _cost(),
+            _budget(),
         )
         assert result.ceiling_usd == pytest.approx(0.85)
 
@@ -52,7 +67,8 @@ class TestAdaptivePlanner:
         planner = AdaptivePlanner(base_ceiling_usd=1.0)
         result = planner.plan(
             _analysis(recommendation="loosen"),
-            _cost(), _budget(),
+            _cost(),
+            _budget(),
         )
         assert result.ceiling_usd == pytest.approx(1.03)
 
@@ -64,15 +80,19 @@ class TestAdaptivePlanner:
     def test_ceiling_min_guard(self) -> None:
         planner = AdaptivePlanner(base_ceiling_usd=1.0, min_ceiling_usd=0.10)
         # Tighten several times
-        halted_signals = (Signal(kind="halt_tighten", severity="critical", detail="halted"),)
+        halted_signals = (
+            Signal(kind="halt_tighten", severity="critical", detail="halted"),
+        )
         for _ in range(10):
             planner.plan(
                 _analysis(recommendation="tighten", signals=halted_signals),
-                _cost(), _budget(),
+                _cost(),
+                _budget(),
             )
         result = planner.plan(
             _analysis(recommendation="tighten", signals=halted_signals),
-            _cost(), _budget(),
+            _cost(),
+            _budget(),
         )
         assert result.ceiling_usd >= 0.10
 
@@ -84,10 +104,13 @@ class TestAdaptivePlanner:
     def test_cooldown_prevents_rapid_changes(self) -> None:
         planner = AdaptivePlanner(base_ceiling_usd=1.0)
         # First tighten applies
-        halted_signals = (Signal(kind="halt_tighten", severity="critical", detail="halted"),)
+        halted_signals = (
+            Signal(kind="halt_tighten", severity="critical", detail="halted"),
+        )
         r1 = planner.plan(
             _analysis(recommendation="tighten", signals=halted_signals),
-            _cost(), _budget(),
+            _cost(),
+            _budget(),
         )
         # Immediate loosen should be blocked by cooldown
         r2 = planner.plan(_analysis(recommendation="loosen"), _cost(), _budget())
@@ -97,7 +120,8 @@ class TestAdaptivePlanner:
         planner = AdaptivePlanner(base_ceiling_usd=1.0)
         result = planner.plan(
             _analysis(recommendation="halt"),
-            _cost(), _budget(),
+            _cost(),
+            _budget(),
         )
         assert result.on_exceed == "halt"
 
@@ -116,10 +140,17 @@ class TestAdaptivePlanner:
         # RuleAnalyzer emits repeated_failure (critical) and sets recommendation="tighten"
         # But for a halted outcome with critical risk, recommendation might be "halt"
         # Use recommendation="tighten" + critical signal (not halt_tighten kind)
-        critical_signals = (Signal(kind="repeated_failure", severity="critical", detail="5 failures"),)
+        critical_signals = (
+            Signal(kind="repeated_failure", severity="critical", detail="5 failures"),
+        )
         result = planner.plan(
-            _analysis(recommendation="tighten", risk_level="critical", signals=critical_signals),
-            _cost(), _budget(),
+            _analysis(
+                recommendation="tighten",
+                risk_level="critical",
+                signals=critical_signals,
+            ),
+            _cost(),
+            _budget(),
         )
         # Should use _HALTED_FACTOR (0.50) since signal severity is critical
         assert result.ceiling_usd == pytest.approx(0.50)
@@ -129,10 +160,15 @@ class TestAdaptivePlanner:
         and warning severity should use _ERROR_FACTOR (-15%) via recommendation fallback."""
         planner = AdaptivePlanner(base_ceiling_usd=1.0)
         # RuleAnalyzer emits repeated_failure (warning)
-        warning_signals = (Signal(kind="repeated_failure", severity="warning", detail="2 failures"),)
+        warning_signals = (
+            Signal(kind="repeated_failure", severity="warning", detail="2 failures"),
+        )
         result = planner.plan(
-            _analysis(recommendation="tighten", risk_level="elevated", signals=warning_signals),
-            _cost(), _budget(),
+            _analysis(
+                recommendation="tighten", risk_level="elevated", signals=warning_signals
+            ),
+            _cost(),
+            _budget(),
         )
         # Should use _ERROR_FACTOR (0.85) since max severity is warning
         assert result.ceiling_usd == pytest.approx(0.85)
@@ -142,7 +178,8 @@ class TestAdaptivePlanner:
         planner = AdaptivePlanner(base_ceiling_usd=1.0)
         result = planner.plan(
             _analysis(recommendation="tighten", signals=()),
-            _cost(), _budget(),
+            _cost(),
+            _budget(),
         )
         # No signals: fallback to _TIMEOUT_FACTOR (0.90)
         assert result.ceiling_usd == pytest.approx(0.90)
@@ -155,7 +192,8 @@ class TestAdaptivePlanner:
         info_signals = (Signal(kind="some_pattern", severity="info", detail="minor"),)
         result = planner.plan(
             _analysis(recommendation="tighten", signals=info_signals),
-            _cost(), _budget(),
+            _cost(),
+            _budget(),
         )
         # info is not critical, so _ERROR_FACTOR (0.85) applies
         assert result.ceiling_usd == pytest.approx(0.85)
@@ -170,7 +208,8 @@ class TestAdaptivePlanner:
         )
         result = planner.plan(
             _analysis(recommendation="tighten", signals=mixed_signals),
-            _cost(), _budget(),
+            _cost(),
+            _budget(),
         )
         # critical present -> _HALTED_FACTOR (0.50)
         assert result.ceiling_usd == pytest.approx(0.50)
@@ -185,7 +224,8 @@ class TestAdaptivePlanner:
         )
         result = planner.plan(
             _analysis(recommendation="tighten", signals=signals),
-            _cost(), _budget(),
+            _cost(),
+            _budget(),
         )
         assert result.ceiling_usd == pytest.approx(0.50)
 
@@ -198,7 +238,8 @@ class TestAdaptivePlanner:
         )
         result = planner.plan(
             _analysis(recommendation="tighten", signals=signals),
-            _cost(), _budget(),
+            _cost(),
+            _budget(),
         )
         assert result.ceiling_usd == pytest.approx(0.85)
 
@@ -211,7 +252,8 @@ class TestAdaptivePlanner:
         )
         result = planner.plan(
             _analysis(recommendation="tighten", signals=signals),
-            _cost(), _budget(),
+            _cost(),
+            _budget(),
         )
         # halt_tighten with warning -> _ERROR_FACTOR (0.85), NOT _HALTED_FACTOR
         assert result.ceiling_usd == pytest.approx(0.85)

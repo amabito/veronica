@@ -1,5 +1,6 @@
 # tests/test_timeguard.py
 """Tests for veronica._timeguard -- stage time budget enforcement."""
+
 from __future__ import annotations
 
 import time
@@ -14,7 +15,9 @@ class TestRunWithBudget:
 
     def test_returns_elapsed(self) -> None:
         result, elapsed = run_with_budget(
-            lambda: 42, budget_ms=100.0, stage_name="test",
+            lambda: 42,
+            budget_ms=100.0,
+            stage_name="test",
             return_elapsed=True,
         )
         assert result == 42
@@ -28,5 +31,6 @@ class TestRunWithBudget:
         # Budget is 10ms but function takes 200ms.
         # Note: we check AFTER completion (no thread kill).
         import pytest
+
         with pytest.raises(TimeBudgetExceeded):
             run_with_budget(slow, budget_ms=10.0, stage_name="slow_test")

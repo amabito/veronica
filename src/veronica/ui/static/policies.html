@@ -71,9 +71,13 @@
       <div id="editor-panel" class="card" style="display:none;">
         <div class="card-header">
           <span class="card-title" id="editor-title">Edit Policy</span>
+          <span id="editor-policy-hash" class="editor-policy-hash" style="display:none;"></span>
         </div>
         <div class="card-body" style="padding:20px;">
           <input type="hidden" id="field-version">
+
+          <!-- Diff summary -->
+          <div id="diff-summary" class="diff-summary" style="display:none;"></div>
 
           <div class="form-group">
             <label class="form-label" for="field-ceiling-usd">Ceiling USD *</label>
@@ -116,8 +120,12 @@
 
           <div style="display:flex;gap:8px;margin-top:8px;">
             <button id="save-btn" class="btn btn-primary" style="flex:1;">Save</button>
+            <button id="simulate-btn" class="btn btn-simulate">Simulate</button>
             <button id="cancel-btn" class="btn" style="background:var(--surface);color:var(--text-muted);border:1px solid var(--border);">Cancel</button>
           </div>
+
+          <!-- Simulate result panel -->
+          <div id="simulate-result" class="simulate-result" style="display:none;"></div>
         </div>
       </div>
     </div>

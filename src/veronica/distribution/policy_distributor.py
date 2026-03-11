@@ -4,9 +4,13 @@
 Thread-safe. Each PolicyDistributor instance maintains an internal version
 counter. The resulting PolicyBundle captures policy_hash (SHA-256) for audit.
 """
+
 from __future__ import annotations
 
+import hashlib
+import hmac
 import math
+import os
 import threading
 import time
 from dataclasses import dataclass
@@ -22,12 +26,33 @@ class PolicyValidationError(ValueError):
     """Raised when a PolicyConfig fails pre-distribution validation."""
 
 
+def _compute_policy_signature(policy_hash: str, key: bytes) -> str:
+    """Compute HMAC-SHA256 signature over the policy_hash hex string.
+
+    Returns the hex digest string.
+    """
+    return hmac.new(key, policy_hash.encode(), hashlib.sha256).hexdigest()
+
+
+def verify_signature(bundle: "PolicyBundle", key: bytes) -> bool:
+    """Verify HMAC-SHA256 signature of a PolicyBundle.
+
+    Returns True if the signature is valid.
+    Raises ValueError if the bundle has no signature (key set but no sig).
+    """
+    if bundle.policy_signature is None:
+        raise ValueError("Bundle has no policy_signature to verify")
+    expected = _compute_policy_signature(bundle.policy_hash, key)
+    return hmac.compare_digest(bundle.policy_signature, expected)
+
+
 @dataclass(frozen=True)
 class PolicyBundle:
     """Output of PolicyDistributor.distribute().
 
     Carries the original policy, the derived kernel config, a
-    content-addressed hash, and a monotonic version number.
+    content-addressed hash, a monotonic version number, and an
+    optional HMAC-SHA256 signature over the policy_hash.
     """
 
     policy: PolicyConfig
@@ -35,6 +60,7 @@ class PolicyBundle:
     policy_hash: str
     distributed_at: float
     version: int
+    policy_signature: str | None = None
 
 
 _ALLOWED_ON_EXCEED = frozenset({"halt", "degrade", "queue"})
@@ -81,7 +107,9 @@ class PolicyDistributor:
             raise PolicyValidationError(
                 f"ceiling_steps must be >= 0, got {policy.ceiling_steps!r}"
             )
-        if policy.ceiling_tokens_out is not None and not math.isfinite(policy.ceiling_tokens_out):
+        if policy.ceiling_tokens_out is not None and not math.isfinite(
+            policy.ceiling_tokens_out
+        ):
             raise PolicyValidationError(
                 f"ceiling_tokens_out must be finite, got {policy.ceiling_tokens_out!r}"
             )
@@ -109,8 +137,7 @@ class PolicyDistributor:
             ]
             if missing:
                 raise PolicyValidationError(
-                    f"strict mode: the following fields must not be None: "
-                    f"{missing}"
+                    f"strict mode: the following fields must not be None: {missing}"
                 )
 
     def distribute(self, policy: PolicyConfig) -> PolicyBundle:
@@ -130,17 +157,24 @@ class PolicyDistributor:
         policy_hash = compute_policy_hash(policy)
         exec_config = policy.to_exec_config()
         version = self._next_version()
+
+        signing_key_raw = os.environ.get("VERONICA_POLICY_SIGNING_KEY", "")
+        policy_signature: str | None = None
+        if signing_key_raw:
+            policy_signature = _compute_policy_signature(
+                policy_hash, signing_key_raw.encode()
+            )
+
         return PolicyBundle(
             policy=policy,
             exec_config=exec_config,
             policy_hash=policy_hash,
             distributed_at=time.time(),
             version=version,
+            policy_signature=policy_signature,
         )
 
-    def distribute_many(
-        self, policies: Sequence[PolicyConfig]
-    ) -> list[PolicyBundle]:
+    def distribute_many(self, policies: Sequence[PolicyConfig]) -> list[PolicyBundle]:
         """Distribute multiple policies, collecting all validation errors.
 
         Args:

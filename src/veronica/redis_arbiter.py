@@ -1,5 +1,6 @@
 # src/veronica/redis_arbiter.py
 """VERONICA OS arbiter -- RedisArbiter for multi-process budget allocation."""
+
 from __future__ import annotations
 
 import json
@@ -92,7 +93,10 @@ class RedisArbiter:
 
         try:
             return self._arbitrate_redis(
-                desires, budget_remaining_usd, request_id, step_id,
+                desires,
+                budget_remaining_usd,
+                request_id,
+                step_id,
             )
         except self._redis_lib.RedisError:
             logger.warning("Redis unavailable, falling back to local arbiter")
@@ -116,7 +120,9 @@ class RedisArbiter:
             )
         except self._redis_lib.RedisError:
             logger.warning(
-                "Redis settle failed for %s:%s", request_id, step_id,
+                "Redis settle failed for %s:%s",
+                request_id,
+                step_id,
             )
 
     def _arbitrate_redis(
@@ -148,13 +154,15 @@ class RedisArbiter:
         remaining_key = f"veronica:{self._scope}:budget:remaining"
         alloc_key = f"veronica:{self._scope}:alloc:{request_id}:{step_id}"
 
-        alloc_json = json.dumps({
-            "status": "reserved",
-            "chain_id": desire.chain_id,
-            "total_reserved_micro": reserve_micro,
-            "ceiling_usd": desire.ceiling_usd,
-            "reserved_at": time.time(),
-        })
+        alloc_json = json.dumps(
+            {
+                "status": "reserved",
+                "chain_id": desire.chain_id,
+                "total_reserved_micro": reserve_micro,
+                "ceiling_usd": desire.ceiling_usd,
+                "reserved_at": time.time(),
+            }
+        )
 
         result = self._reserve_script(
             keys=[remaining_key, alloc_key],

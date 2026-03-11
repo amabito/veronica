@@ -13,6 +13,7 @@ Categories:
   5. TestAdversarialBoundary -- exact-boundary, zero, and overflow abuse
   6. TestAdversarialInfoLeakage -- error responses must not leak internals
 """
+
 from __future__ import annotations
 
 import threading
@@ -24,7 +25,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 from veronica.api.app import create_app
-from veronica.distribution.policy_distributor import PolicyDistributor, PolicyValidationError
+from veronica.distribution.policy_distributor import (
+    PolicyDistributor,
+    PolicyValidationError,
+)
 from veronica.ingest.event_ingestor import CPStepOutcomeStore, EventIngestor
 from veronica.types import PolicyConfig
 
@@ -200,7 +204,9 @@ class TestAdversarialAPI:
 class TestAdversarialAuth:
     """Auth bypass must always fail with 401 or 503 -- never grant access."""
 
-    def test_no_key_header_on_protected_endpoint(self, client_with_key: TestClient) -> None:
+    def test_no_key_header_on_protected_endpoint(
+        self, client_with_key: TestClient
+    ) -> None:
         """Request without X-Veronica-Key to /simulate must be 401."""
         body = {"policy": _VALID_POLICY, "steps": []}
         resp = client_with_key.post("/simulate", json=body)
@@ -222,7 +228,9 @@ class TestAdversarialAuth:
         )
         assert resp.status_code == 401, resp.text
 
-    def test_path_traversal_health_in_policies(self, client_with_key: TestClient) -> None:
+    def test_path_traversal_health_in_policies(
+        self, client_with_key: TestClient
+    ) -> None:
         """Path traversal /health/../policies is NOT /health -- must be 4xx, not 200.
 
         The middleware only exempts exact /health. Traversal resolves to /policies
@@ -241,7 +249,9 @@ class TestAdversarialAuth:
         # 404 (route not found) or 401 (auth denied before routing) -- not 200
         assert resp.status_code != 200, resp.text
 
-    def test_health_with_trailing_slash_is_exempt(self, client_with_key: TestClient) -> None:
+    def test_health_with_trailing_slash_is_exempt(
+        self, client_with_key: TestClient
+    ) -> None:
         """/health/ should still be exempt (middleware strips trailing slash).
 
         This documents expected behavior: /health/ is treated same as /health.
@@ -486,7 +496,9 @@ class TestAdversarialStateCorruption:
 class TestAdversarialBoundary:
     """Exact boundary values, zero, and overflow must behave predictably."""
 
-    def test_simulate_ceiling_usd_zero_halts_on_first_cost(self, client: TestClient) -> None:
+    def test_simulate_ceiling_usd_zero_halts_on_first_cost(
+        self, client: TestClient
+    ) -> None:
         """ceiling_usd=0.0 with a step that has cost > 0 must halt immediately.
 
         A zero budget is valid configuration; any cost exceeds it.
@@ -498,10 +510,14 @@ class TestAdversarialBoundary:
         resp = client.post("/simulate", json=body)
         assert resp.status_code == 200, resp.text
         data = resp.json()
-        assert data["final_decision"] != "allow", "Zero budget must halt on non-zero cost"
+        assert data["final_decision"] != "allow", (
+            "Zero budget must halt on non-zero cost"
+        )
         assert data["steps_halted"] == 1
 
-    def test_simulate_ceiling_steps_zero_halts_first_step(self, client: TestClient) -> None:
+    def test_simulate_ceiling_steps_zero_halts_first_step(
+        self, client: TestClient
+    ) -> None:
         """ceiling_steps=0 must halt on the very first step (0 steps allowed).
 
         Step 1 projects steps=1 which exceeds ceiling_steps=0.
@@ -513,7 +529,9 @@ class TestAdversarialBoundary:
         resp = client.post("/simulate", json=body)
         assert resp.status_code == 200, resp.text
         data = resp.json()
-        assert data["final_decision"] != "allow", "ceiling_steps=0 must halt on first step"
+        assert data["final_decision"] != "allow", (
+            "ceiling_steps=0 must halt on first step"
+        )
 
     def test_simulate_timeout_ms_zero_is_valid(self, client: TestClient) -> None:
         """timeout_ms=0 is a valid value (>= 0) -- distributor must accept it."""
@@ -589,7 +607,9 @@ class TestAdversarialBoundary:
 class TestAdversarialInfoLeakage:
     """Error responses must not reveal stack traces, internal paths, or class names."""
 
-    def test_500_no_stack_trace_in_response(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_500_no_stack_trace_in_response(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """An unhandled internal exception must return 500 with no stack trace.
 
         The generic exception handler must sanitize the response body.
@@ -603,7 +623,9 @@ class TestAdversarialInfoLeakage:
         # Force an internal error by patching _evaluate_step (called inside the route)
         with patch(
             "veronica.api.routes.simulate._evaluate_step",
-            side_effect=RuntimeError("secret internal path: /home/user/.config/veronica"),
+            side_effect=RuntimeError(
+                "secret internal path: /home/user/.config/veronica"
+            ),
         ):
             with TestClient(app, raise_server_exceptions=False) as c:
                 body = {
@@ -619,7 +641,9 @@ class TestAdversarialInfoLeakage:
         assert "RuntimeError" not in body_text, "Exception class name leaked"
         assert "/home/user" not in body_text, "Internal path leaked in 500 response"
 
-    def test_500_debug_mode_may_expose_detail(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_500_debug_mode_may_expose_detail(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """With VERONICA_DEBUG=1, str(exc) may appear -- this is expected behavior.
 
         This test documents (not blocks) the debug mode behavior.
@@ -636,14 +660,19 @@ class TestAdversarialInfoLeakage:
             with TestClient(app, raise_server_exceptions=False) as c:
                 resp = c.post(
                     "/simulate",
-                    json={"policy": _VALID_POLICY, "steps": [{"kind": "llm", "cost_usd": 0.0}]},
+                    json={
+                        "policy": _VALID_POLICY,
+                        "steps": [{"kind": "llm", "cost_usd": 0.0}],
+                    },
                 )
 
         assert resp.status_code == 500
         # In debug mode, detail is str(exc) -- this is expected
         assert "debug-detail" in resp.text
 
-    def test_401_body_does_not_reveal_expected_key(self, client_with_key: TestClient) -> None:
+    def test_401_body_does_not_reveal_expected_key(
+        self, client_with_key: TestClient
+    ) -> None:
         """401 response must not hint at what the correct key should be."""
         resp = client_with_key.get(
             "/policies",
@@ -661,7 +690,9 @@ class TestAdversarialInfoLeakage:
         # Must not expose Python module paths like 'veronica.api.routes.policies'
         assert "veronica.api" not in body_text, "Internal module path in 404 response"
 
-    def test_422_body_does_not_contain_python_exception_repr(self, client: TestClient) -> None:
+    def test_422_body_does_not_contain_python_exception_repr(
+        self, client: TestClient
+    ) -> None:
         """422 validation error must not contain raw Python exception repr."""
         body = {
             "policy": {**_VALID_POLICY, "ceiling_usd": "garbage"},
@@ -673,11 +704,15 @@ class TestAdversarialInfoLeakage:
         # Must not expose raw Python tracebacks or exception class names from internals
         assert "Traceback" not in body_text, "Stack trace in 422 response"
 
-    def test_400_invalid_decision_does_not_leak_store_state(self, client: TestClient) -> None:
+    def test_400_invalid_decision_does_not_leak_store_state(
+        self, client: TestClient
+    ) -> None:
         """400 response for invalid decision filter must not expose store contents."""
         resp = client.get("/events?decision=EVIL_INJECTION")
         assert resp.status_code == 400
         body_text = resp.text
         # The detail should mention valid decisions, not dump internal state
         assert "Traceback" not in body_text
-        assert "veronica.ingest" not in body_text, "Internal module path in 400 response"
+        assert "veronica.ingest" not in body_text, (
+            "Internal module path in 400 response"
+        )

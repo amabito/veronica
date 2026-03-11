@@ -1,5 +1,6 @@
 # src/veronica/store.py
 """VERONICA OS store implementations."""
+
 from __future__ import annotations
 
 import math
@@ -59,7 +60,10 @@ class MemoryStore:
         """
         self._validate_chain_id(outcome.chain_id)
         with self._lock:
-            if outcome.chain_id not in self._chains and len(self._chains) >= _MAX_CHAINS:
+            if (
+                outcome.chain_id not in self._chains
+                and len(self._chains) >= _MAX_CHAINS
+            ):
                 raise ValueError(
                     f"Chain limit ({_MAX_CHAINS}) reached; cannot create chain '{outcome.chain_id}'"
                 )

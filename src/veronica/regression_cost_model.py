@@ -1,5 +1,6 @@
 # src/veronica/regression_cost_model.py
 """VERONICA OS cost model -- EMA-based regression cost estimation."""
+
 from __future__ import annotations
 
 from veronica_core.pricing import PRICING_TABLE, estimate_cost_usd
@@ -54,7 +55,9 @@ class RegressionCostModel:
 
         # Fallback to pricing table
         if model_key in PRICING_TABLE:
-            cost = estimate_cost_usd(model_key, _FALLBACK_TOKENS_IN, _FALLBACK_TOKENS_OUT)
+            cost = estimate_cost_usd(
+                model_key, _FALLBACK_TOKENS_IN, _FALLBACK_TOKENS_OUT
+            )
         else:
             cost = _FALLBACK_COST_USD
 

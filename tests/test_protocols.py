@@ -1,5 +1,6 @@
 # tests/test_protocols.py
 """Tests for veronica.protocols -- structural subtyping checks."""
+
 from __future__ import annotations
 
 from veronica.protocols import (

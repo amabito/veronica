@@ -1,5 +1,6 @@
 # tests/test_api_health.py
 """Tests for GET /health endpoint."""
+
 from __future__ import annotations
 
 import pytest
@@ -63,7 +64,13 @@ class TestHealthEndpoint:
         assert r2 >= r1
 
     def test_all_required_fields_present(self, client: TestClient) -> None:
-        required = {"status", "version", "kernel_version", "uptime_seconds", "subsystems"}
+        required = {
+            "status",
+            "version",
+            "kernel_version",
+            "uptime_seconds",
+            "subsystems",
+        }
         data = client.get("/health").json()
         assert required.issubset(data.keys())
 

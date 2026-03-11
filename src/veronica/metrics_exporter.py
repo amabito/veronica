@@ -1,5 +1,6 @@
 # src/veronica/metrics_exporter.py
 """Optional Prometheus HTTP exporter for VERONICA metrics."""
+
 from __future__ import annotations
 
 import logging
@@ -41,8 +42,12 @@ def start_metrics_server(
         logger.debug("prometheus_client not installed; metrics server disabled")
         return False
 
-    resolved = port if port is not None else int(
-        os.environ.get("VERONICA_METRICS_PORT", _DEFAULT_PORT),
+    resolved = (
+        port
+        if port is not None
+        else int(
+            os.environ.get("VERONICA_METRICS_PORT", _DEFAULT_PORT),
+        )
     )
     start_http_server(resolved, addr=addr)
     _started = True

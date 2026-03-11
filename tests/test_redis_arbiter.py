@@ -1,5 +1,6 @@
 # tests/test_redis_arbiter.py
 """Tests for RedisArbiter -- multi-process budget allocation."""
+
 from __future__ import annotations
 
 
@@ -39,14 +40,17 @@ def arbiter():
     fake_redis = fakeredis.FakeRedis(decode_responses=True)
     arb = RedisArbiter.__new__(RedisArbiter)
     import redis as redis_lib
+
     arb._redis = fake_redis
     arb._redis_lib = redis_lib
     arb._scope = "test"
     arb._total_budget_micro = _to_micro(100.0)
     arb._ttl = 300
     from veronica.proportional_arbiter import ProportionalArbiter
+
     arb._fallback = ProportionalArbiter()
     from veronica._redis_scripts import LUA_RESERVE, LUA_SETTLE
+
     arb._reserve_script = fake_redis.register_script(LUA_RESERVE)
     arb._settle_script = fake_redis.register_script(LUA_SETTLE)
     return arb
@@ -165,7 +169,8 @@ class TestAtomicity:
             try:
                 arbiter.set_arbitration_context(f"r{i}", f"s{i}")
                 configs = arbiter.arbitrate(
-                    [_desire(chain_id=f"c{i}", ceiling_usd=10.0)], 100.0,
+                    [_desire(chain_id=f"c{i}", ceiling_usd=10.0)],
+                    100.0,
                 )
                 results.append(configs[f"c{i}"].ceiling_usd)
             except Exception as e:
@@ -187,7 +192,8 @@ class TestAtomicity:
         for i in range(5):
             arbiter.set_arbitration_context(f"r{i}", f"s{i}")
             arbiter.arbitrate(
-                [_desire(chain_id=f"c{i}", ceiling_usd=10.0)], 100.0,
+                [_desire(chain_id=f"c{i}", ceiling_usd=10.0)],
+                100.0,
             )
 
         # remaining = 50 after 5 reserves of 10 each
@@ -234,9 +240,14 @@ def _intent(
     model: str = "gpt-4",
 ) -> StepIntent:
     return StepIntent(
-        step_id=step_id, request_id=request_id, chain_id=chain_id,
-        kind="llm", model=model, tool_name=None,
-        timeout_ms=30_000, metadata={},
+        step_id=step_id,
+        request_id=request_id,
+        chain_id=chain_id,
+        kind="llm",
+        model=model,
+        tool_name=None,
+        timeout_ms=30_000,
+        metadata={},
     )
 
 
@@ -246,23 +257,35 @@ def _snapshot(
     status: str = "ok",
 ) -> ContextSnapshot:
     node = NodeRecord(
-        node_id="n1", parent_id=None, kind="llm",
+        node_id="n1",
+        parent_id=None,
+        kind="llm",
         operation_name="test_op",
         start_ts=datetime.now(timezone.utc),
         end_ts=datetime.now(timezone.utc),
-        status=status, cost_usd=cost, retries_used=0,
+        status=status,
+        cost_usd=cost,
+        retries_used=0,
     )
     return ContextSnapshot(
-        chain_id=chain_id, request_id="r1", step_count=1,
-        cost_usd_accumulated=cost, retries_used=0,
-        aborted=False, abort_reason=None,
-        elapsed_ms=100.0, nodes=[node], events=[],
+        chain_id=chain_id,
+        request_id="r1",
+        step_count=1,
+        cost_usd_accumulated=cost,
+        retries_used=0,
+        aborted=False,
+        abort_reason=None,
+        elapsed_ms=100.0,
+        nodes=[node],
+        events=[],
     )
 
 
 class TestIntegration:
     def test_full_pipeline_with_redis_arbiter(
-        self, arbiter: RedisArbiter, tmp_path,
+        self,
+        arbiter: RedisArbiter,
+        tmp_path,
     ) -> None:
         """VeronicaOS with RedisArbiter: before_step + after_step."""
         vos = VeronicaOS(

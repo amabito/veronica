@@ -3,6 +3,7 @@
 Requires Docker. Skipped automatically when Docker is not available.
 Run explicitly: pytest tests/test_dashboard_smoke.py -v
 """
+
 from __future__ import annotations
 
 import shutil
@@ -27,14 +28,16 @@ def _compose_available() -> bool:
         # Check compose CLI exists
         result = subprocess.run(
             ["docker", "compose", "version"],
-            capture_output=True, timeout=10,
+            capture_output=True,
+            timeout=10,
         )
         if result.returncode != 0:
             return False
         # Check Docker daemon is running
         result = subprocess.run(
             ["docker", "info"],
-            capture_output=True, timeout=10,
+            capture_output=True,
+            timeout=10,
         )
         return result.returncode == 0
     except (subprocess.TimeoutExpired, FileNotFoundError):
@@ -98,10 +101,7 @@ class TestDashboardSmoke:
         """VERONICA dashboard is auto-loaded via provisioning."""
         resp = _poll(
             "http://127.0.0.1:3000/api/search?query=veronica",
-            lambda r: any(
-                "veronica" in d.get("title", "").lower()
-                for d in r.json()
-            ),
+            lambda r: any("veronica" in d.get("title", "").lower() for d in r.json()),
         )
         dashboards = resp.json()
         titles = [d["title"] for d in dashboards]
@@ -111,7 +111,8 @@ class TestDashboardSmoke:
         """Prometheus has veronica scrape target registered."""
         resp = _poll(
             "http://127.0.0.1:9090/api/v1/targets",
-            lambda r: "veronica" in [
+            lambda r: "veronica"
+            in [
                 t["labels"].get("job", "")
                 for t in r.json().get("data", {}).get("activeTargets", [])
             ],

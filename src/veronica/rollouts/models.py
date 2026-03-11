@@ -1,5 +1,6 @@
 # src/veronica/rollouts/models.py
 """Rollout pipeline data models."""
+
 from __future__ import annotations
 
 import uuid

@@ -1,5 +1,6 @@
 # src/veronica/file_store.py
 """VERONICA OS file store -- JSONL persistence with EMA computation."""
+
 from __future__ import annotations
 
 import json
@@ -84,7 +85,9 @@ class _ChainStats:
         s.success_streak = int(data.get("success_streak", 0))
         s.failure_streak = int(data.get("failure_streak", 0))
         s.total_commits = int(data.get("total_commits", 0))
-        s.budget_headroom_ratio = cls._safe_float(data.get("budget_headroom_ratio", 1.0), 1.0)
+        s.budget_headroom_ratio = cls._safe_float(
+            data.get("budget_headroom_ratio", 1.0), 1.0
+        )
         s.commits_since_rotate = int(data.get("commits_since_rotate", 0))
         return s
 
@@ -139,7 +142,9 @@ class FileStore:
         for stats_path in self._data_dir.glob("*_stats.json"):
             chain_id = stats_path.stem.removesuffix("_stats")
             if not _SAFE_CHAIN_RE.match(chain_id):
-                logger.warning("Skipping stats file with invalid chain_id: %s", stats_path.name)
+                logger.warning(
+                    "Skipping stats file with invalid chain_id: %s", stats_path.name
+                )
                 continue
             try:
                 data = json.loads(stats_path.read_text())
@@ -161,7 +166,10 @@ class FileStore:
 
         with self._lock:
             # Reject new chains beyond the cap
-            if chain_id not in self._chain_stats and len(self._chain_stats) >= _MAX_CHAINS:
+            if (
+                chain_id not in self._chain_stats
+                and len(self._chain_stats) >= _MAX_CHAINS
+            ):
                 raise ValueError(
                     f"Chain limit ({_MAX_CHAINS}) reached; cannot create chain '{chain_id}'"
                 )
@@ -193,11 +201,16 @@ class FileStore:
             # 2. Update stats
             stats = self._chain_stats.setdefault(chain_id, _ChainStats())
             safe_cost = outcome.cost_usd if math.isfinite(outcome.cost_usd) else 0.0
-            safe_elapsed = outcome.elapsed_ms if math.isfinite(outcome.elapsed_ms) else 0.0
+            safe_elapsed = (
+                outcome.elapsed_ms if math.isfinite(outcome.elapsed_ms) else 0.0
+            )
             stats.cost_ema = _ema(stats.cost_ema, safe_cost)
 
             model_key = (outcome.model or "unknown")[:128]
-            if len(stats.cost_ema_by_model) < _MAX_MODELS_PER_CHAIN or model_key in stats.cost_ema_by_model:
+            if (
+                len(stats.cost_ema_by_model) < _MAX_MODELS_PER_CHAIN
+                or model_key in stats.cost_ema_by_model
+            ):
                 prev_cost = stats.cost_ema_by_model.get(model_key, 0.0)
                 stats.cost_ema_by_model[model_key] = _ema(prev_cost, safe_cost)
 
@@ -337,7 +350,9 @@ class FileStore:
                     continue
                 o = rec.get("outcome")
                 if o is None:
-                    logger.warning("JSONL line missing 'outcome' key in %s, skipping", path)
+                    logger.warning(
+                        "JSONL line missing 'outcome' key in %s, skipping", path
+                    )
                     continue
                 try:
                     cost_usd = float(o["cost_usd"])
@@ -350,27 +365,31 @@ class FileStore:
                         elapsed_ms = 0.0
                     if not math.isfinite(timestamp_ms):
                         timestamp_ms = 0.0
-                    records.append(StepOutcome(
-                        step_id=o["step_id"],
-                        request_id=o["request_id"],
-                        chain_id=o["chain_id"],
-                        kind=o["kind"],
-                        status=o["status"],
-                        cost_usd=max(0.0, cost_usd),
-                        tokens_in=max(0, int(o["tokens_in"])),
-                        tokens_out=max(0, int(o["tokens_out"])),
-                        elapsed_ms=max(0.0, elapsed_ms),
-                        model=o.get("model"),
-                        events=(),
-                        timestamp_ms=int(timestamp_ms),
-                    ))
+                    records.append(
+                        StepOutcome(
+                            step_id=o["step_id"],
+                            request_id=o["request_id"],
+                            chain_id=o["chain_id"],
+                            kind=o["kind"],
+                            status=o["status"],
+                            cost_usd=max(0.0, cost_usd),
+                            tokens_in=max(0, int(o["tokens_in"])),
+                            tokens_out=max(0, int(o["tokens_out"])),
+                            elapsed_ms=max(0.0, elapsed_ms),
+                            model=o.get("model"),
+                            events=(),
+                            timestamp_ms=int(timestamp_ms),
+                        )
+                    )
                 except (KeyError, TypeError, ValueError):
                     logger.warning("Corrupt outcome record in %s, skipping", path)
                     continue
         return records
 
     @staticmethod
-    def _compute_loop_score(outcomes: tuple[StepOutcome, ...] | list[StepOutcome]) -> float:
+    def _compute_loop_score(
+        outcomes: tuple[StepOutcome, ...] | list[StepOutcome],
+    ) -> float:
         if len(outcomes) < 3:
             return 0.0
         keys = [(o.kind, o.model or o.kind, o.status) for o in outcomes[-10:]]

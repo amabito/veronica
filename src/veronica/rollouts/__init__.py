@@ -1,5 +1,6 @@
 # src/veronica/rollouts/__init__.py
 """Rollout pipeline -- 6-state lifecycle management for policy promotions."""
+
 from __future__ import annotations
 
 from veronica.rollouts.models import Rollout, RolloutState, StateTransition

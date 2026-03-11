@@ -1,5 +1,6 @@
 # src/veronica/proportional_arbiter.py
 """VERONICA OS arbiter -- ProportionalArbiter with priority-weighted allocation."""
+
 from __future__ import annotations
 
 import time

@@ -1,5 +1,6 @@
 # src/veronica/api/routes/simulate.py
 """POST /simulate endpoint -- side-effect-free policy simulation."""
+
 from __future__ import annotations
 
 import logging
@@ -41,7 +42,12 @@ def _build_policy(policy_dict: dict) -> PolicyConfig:
         )
 
     ceiling_usd = policy_dict.get("ceiling_usd")
-    if isinstance(ceiling_usd, bool) or not isinstance(ceiling_usd, (int, float)) or not math.isfinite(ceiling_usd) or ceiling_usd < 0:
+    if (
+        isinstance(ceiling_usd, bool)
+        or not isinstance(ceiling_usd, (int, float))
+        or not math.isfinite(ceiling_usd)
+        or ceiling_usd < 0
+    ):
         raise HTTPException(
             status_code=422,
             detail="ceiling_usd must be a non-negative number",
@@ -61,7 +67,10 @@ def _build_policy(policy_dict: dict) -> PolicyConfig:
                 detail="Invalid policy configuration",
             ) from exc
         if not math.isfinite(deadline_ts) or deadline_ts < 0:
-            raise HTTPException(status_code=422, detail="deadline_ts must be a finite non-negative number")
+            raise HTTPException(
+                status_code=422,
+                detail="deadline_ts must be a finite non-negative number",
+            )
 
     expires_at = policy_dict.get("expires_at")
     if expires_at is not None:
@@ -75,7 +84,10 @@ def _build_policy(policy_dict: dict) -> PolicyConfig:
                 detail="Invalid policy configuration",
             ) from exc
         if not math.isfinite(expires_at) or expires_at < 0:
-            raise HTTPException(status_code=422, detail="expires_at must be a finite non-negative number")
+            raise HTTPException(
+                status_code=422,
+                detail="expires_at must be a finite non-negative number",
+            )
 
     chain_id_str = str(policy_dict["chain_id"])[:256]
     if not chain_id_str:
@@ -90,16 +102,26 @@ def _build_policy(policy_dict: dict) -> PolicyConfig:
         try:
             issued_at_val = float(issued_at_raw)
         except (TypeError, ValueError) as exc:
-            raise HTTPException(status_code=422, detail="Invalid policy configuration") from exc
+            raise HTTPException(
+                status_code=422, detail="Invalid policy configuration"
+            ) from exc
         if not math.isfinite(issued_at_val) or issued_at_val < 0:
-            raise HTTPException(status_code=422, detail="issued_at must be a finite non-negative number")
+            raise HTTPException(
+                status_code=422, detail="issued_at must be a finite non-negative number"
+            )
 
     priority_raw = policy_dict.get("priority", 50)
     if isinstance(priority_raw, bool):
         raise HTTPException(status_code=422, detail="Invalid policy configuration")
 
     # Bool-as-int guard for optional integer/numeric fields
-    for _key in ("ceiling_tokens_out", "ceiling_steps", "timeout_ms", "rate_ceiling_calls", "rate_window_seconds"):
+    for _key in (
+        "ceiling_tokens_out",
+        "ceiling_steps",
+        "timeout_ms",
+        "rate_ceiling_calls",
+        "rate_window_seconds",
+    ):
         _val = policy_dict.get(_key)
         if _val is not None and isinstance(_val, bool):
             raise HTTPException(status_code=422, detail="Invalid policy configuration")
@@ -154,7 +176,10 @@ def _evaluate_step(
         )
 
     # Token ceiling check
-    if policy.ceiling_tokens_out is not None and projected_tokens > policy.ceiling_tokens_out:
+    if (
+        policy.ceiling_tokens_out is not None
+        and projected_tokens > policy.ceiling_tokens_out
+    ):
         return policy.on_exceed, (  # type: ignore[return-value]
             f"token ceiling exceeded: {projected_tokens} > {policy.ceiling_tokens_out}"
         )
@@ -176,7 +201,9 @@ def _evaluate_step(
     return "allow", "within budget"
 
 
-@router.post("/simulate", response_model=SimulateResponse, summary="Simulate policy evaluation")
+@router.post(
+    "/simulate", response_model=SimulateResponse, summary="Simulate policy evaluation"
+)
 async def simulate(request: Request, body: SimulateRequest) -> SimulateResponse:
     """Run a side-effect-free simulation of policy enforcement.
 
@@ -191,14 +218,18 @@ async def simulate(request: Request, body: SimulateRequest) -> SimulateResponse:
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=422, detail="Invalid simulation request") from exc
+        raise HTTPException(
+            status_code=422, detail="Invalid simulation request"
+        ) from exc
 
     # Distribute to get the policy_hash (read-only operation on distributor)
     try:
         bundle = distributor.distribute(policy)
     except (PolicyValidationError, TypeError, ValueError) as exc:
         logger.warning("[simulate] policy validation error: %s", exc)
-        raise HTTPException(status_code=422, detail="Invalid policy configuration") from exc
+        raise HTTPException(
+            status_code=422, detail="Invalid policy configuration"
+        ) from exc
 
     step_results: list[SimulationStepResult] = []
     cumulative_cost = 0.0

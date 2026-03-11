@@ -1,5 +1,6 @@
 # tests/test_policy_distributor.py
 """Tests for PolicyDistributor -- PolicyConfig -> ExecutionConfig bridge."""
+
 from __future__ import annotations
 
 import threading
@@ -57,20 +58,24 @@ class TestPolicyValidation:
 
     def test_strict_mode_passes_with_all_fields(self) -> None:
         dist = PolicyDistributor(strict=True)
-        bundle = dist.distribute(_policy(
-            ceiling_steps=50,
-            ceiling_tokens_out=10_000,
-            timeout_ms=30_000,
-        ))
+        bundle = dist.distribute(
+            _policy(
+                ceiling_steps=50,
+                ceiling_tokens_out=10_000,
+                timeout_ms=30_000,
+            )
+        )
         assert bundle.exec_config.max_steps == 50
 
     def test_non_strict_mode_accepts_none_fields(self) -> None:
         dist = PolicyDistributor(strict=False)
-        bundle = dist.distribute(_policy(
-            ceiling_steps=None,
-            ceiling_tokens_out=None,
-            timeout_ms=None,
-        ))
+        bundle = dist.distribute(
+            _policy(
+                ceiling_steps=None,
+                ceiling_tokens_out=None,
+                timeout_ms=None,
+            )
+        )
         assert bundle.policy.ceiling_steps is None
 
 
@@ -116,11 +121,13 @@ class TestPolicyBundle:
 
     def test_exec_config_reflects_policy(self) -> None:
         dist = PolicyDistributor()
-        bundle = dist.distribute(_policy(
-            ceiling_usd=2.5,
-            ceiling_steps=20,
-            timeout_ms=15_000,
-        ))
+        bundle = dist.distribute(
+            _policy(
+                ceiling_usd=2.5,
+                ceiling_steps=20,
+                timeout_ms=15_000,
+            )
+        )
         assert bundle.exec_config.max_cost_usd == 2.5
         assert bundle.exec_config.max_steps == 20
         assert bundle.exec_config.timeout_ms == 15_000

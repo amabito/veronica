@@ -1,5 +1,6 @@
 # src/veronica/api/routes/replay.py
 """POST /replay endpoint -- side-effect-free incident replay."""
+
 from __future__ import annotations
 
 import logging
@@ -47,12 +48,16 @@ class ReplayRequestBody(BaseModel):
         pattern=r"^[a-zA-Z0-9_:@.\-]+$",
         description="Chain scope to replay",
     )
-    from_timestamp: float = Field(..., description="Unix epoch seconds (inclusive lower bound)")
-    to_timestamp: float = Field(..., description="Unix epoch seconds (inclusive upper bound)")
+    from_timestamp: float = Field(
+        ..., description="Unix epoch seconds (inclusive lower bound)"
+    )
+    to_timestamp: float = Field(
+        ..., description="Unix epoch seconds (inclusive upper bound)"
+    )
     override_policy: dict[str, Any] | None = Field(
         default=None,
         description="Optional override policy fields (PolicyConfig-like). "
-                    "chain_id, ceiling_usd, and on_exceed are required if provided.",
+        "chain_id, ceiling_usd, and on_exceed are required if provided.",
     )
 
     @field_validator("from_timestamp", "to_timestamp")

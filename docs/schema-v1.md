@@ -6,7 +6,7 @@ Emitted by `VeronicaOS` after each step execution via `BufferedEmitter`.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `schema_version` | int | yes | Always `1`. Enables future payload evolution. |
+| `schema_version` | str | yes | Always `"1.0"`. Enables future payload evolution. CPStepOutcome includes this field; use it to detect schema changes in downstream consumers. |
 | `request_id` | str | yes | ID of the originating request. |
 | `step_id` | str | yes | ID of this step. |
 | `chain_id` | str | yes | Chain this step belongs to. |

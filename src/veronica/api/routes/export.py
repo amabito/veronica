@@ -1,5 +1,6 @@
 # src/veronica/api/routes/export.py
 """GET /export endpoint -- full JSON dump of policies and recent events."""
+
 from __future__ import annotations
 
 import heapq
@@ -60,24 +61,26 @@ async def export_data(
         page += 1
     for bundle in all_bundles:
         p = bundle.policy
-        policies.append({
-            "chain_id": p.chain_id,
-            "ceiling_usd": p.ceiling_usd,
-            "on_exceed": p.on_exceed,
-            "issued_at": p.issued_at,
-            "ceiling_tokens_out": p.ceiling_tokens_out,
-            "ceiling_steps": p.ceiling_steps,
-            "fallback_model": p.fallback_model,
-            "timeout_ms": p.timeout_ms,
-            "rate_window_seconds": p.rate_window_seconds,
-            "rate_ceiling_calls": p.rate_ceiling_calls,
-            "priority": p.priority,
-            "deadline_ts": p.deadline_ts,
-            "expires_at": p.expires_at,
-            "planner_version": p.planner_version,
-            "policy_hash": bundle.policy_hash,
-            "version": bundle.version,
-        })
+        policies.append(
+            {
+                "chain_id": p.chain_id,
+                "ceiling_usd": p.ceiling_usd,
+                "on_exceed": p.on_exceed,
+                "issued_at": p.issued_at,
+                "ceiling_tokens_out": p.ceiling_tokens_out,
+                "ceiling_steps": p.ceiling_steps,
+                "fallback_model": p.fallback_model,
+                "timeout_ms": p.timeout_ms,
+                "rate_window_seconds": p.rate_window_seconds,
+                "rate_ceiling_calls": p.rate_ceiling_calls,
+                "priority": p.priority,
+                "deadline_ts": p.deadline_ts,
+                "expires_at": p.expires_at,
+                "planner_version": p.planner_version,
+                "policy_hash": bundle.policy_hash,
+                "version": bundle.version,
+            }
+        )
 
     # Collect recent events from EventIngestor store (CPStepOutcomeStore)
     events: list[dict[str, Any]] = []
@@ -87,18 +90,20 @@ async def export_data(
         outcomes = heapq.nlargest(event_limit, all_outcomes, key=lambda o: o.timestamp)
 
         for outcome in outcomes:
-            events.append({
-                "step_id": outcome.step_id,
-                "chain_id": outcome.chain_id,
-                "operation_name": outcome.operation_name,
-                "decision": outcome.decision,
-                "cost_usd": outcome.cost_usd,
-                "tokens": outcome.tokens,
-                "duration_ms": outcome.duration_ms,
-                "policy_hash": outcome.policy_hash,
-                "audit_id": outcome.audit_id,
-                "timestamp": outcome.timestamp,
-            })
+            events.append(
+                {
+                    "step_id": outcome.step_id,
+                    "chain_id": outcome.chain_id,
+                    "operation_name": outcome.operation_name,
+                    "decision": outcome.decision,
+                    "cost_usd": outcome.cost_usd,
+                    "tokens": outcome.tokens,
+                    "duration_ms": outcome.duration_ms,
+                    "policy_hash": outcome.policy_hash,
+                    "audit_id": outcome.audit_id,
+                    "timestamp": outcome.timestamp,
+                }
+            )
     except Exception as exc:
         logger.warning("Event collection failed during export: %s", exc)
         warnings.append("Event collection failed; events list may be incomplete")

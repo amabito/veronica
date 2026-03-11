@@ -10,6 +10,7 @@ degraded execution mode:
 
 Uses real veronica-core ExecutionContext.
 """
+
 from __future__ import annotations
 
 import time
@@ -55,17 +56,27 @@ def _intent(
 
 def _snapshot(chain_id: str, request_id: str, cost: float = 0.01) -> ContextSnapshot:
     node = NodeRecord(
-        node_id="n1", parent_id=None, kind="llm",
+        node_id="n1",
+        parent_id=None,
+        kind="llm",
         operation_name="llm_call",
         start_ts=datetime.now(timezone.utc),
         end_ts=datetime.now(timezone.utc),
-        status="ok", cost_usd=cost, retries_used=0,
+        status="ok",
+        cost_usd=cost,
+        retries_used=0,
     )
     return ContextSnapshot(
-        chain_id=chain_id, request_id=request_id, step_count=1,
-        cost_usd_accumulated=cost, retries_used=0,
-        aborted=False, abort_reason=None,
-        elapsed_ms=100.0, nodes=[node], events=[],
+        chain_id=chain_id,
+        request_id=request_id,
+        step_count=1,
+        cost_usd_accumulated=cost,
+        retries_used=0,
+        aborted=False,
+        abort_reason=None,
+        elapsed_ms=100.0,
+        nodes=[node],
+        events=[],
     )
 
 

@@ -6,6 +6,7 @@ Covers:
 2. Health degraded: /health returns status="degraded" when store is unavailable
 3. Clear error messages for missing config
 """
+
 from __future__ import annotations
 
 import pytest
@@ -27,7 +28,9 @@ def _make_client_no_auth(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     return TestClient(app, raise_server_exceptions=False)
 
 
-def _make_client_with_key(monkeypatch: pytest.MonkeyPatch, key: str = "secure-key") -> TestClient:
+def _make_client_with_key(
+    monkeypatch: pytest.MonkeyPatch, key: str = "secure-key"
+) -> TestClient:
     """Client with a configured API key."""
     monkeypatch.setenv("VERONICA_API_KEY", key)
     app = create_app()
@@ -158,7 +161,9 @@ class TestHealthDegradedWhenStoreUnavailable:
     def test_broken_store_returns_degraded(self) -> None:
         client = self._make_degraded_client()
         resp = client.get("/health")
-        assert resp.status_code == 200, "Health must always return 200 (never 5xx itself)"
+        assert resp.status_code == 200, (
+            "Health must always return 200 (never 5xx itself)"
+        )
         assert resp.json()["status"] == "degraded"
 
     def test_missing_store_returns_degraded(self) -> None:
@@ -207,7 +212,9 @@ class TestInvalidPolicyConfigRejected:
         app = create_app()
         return TestClient(app, raise_server_exceptions=False)
 
-    def test_negative_ceiling_usd_rejected(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_negative_ceiling_usd_rejected(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """ceiling_usd < 0 must raise PolicyValidationError, not be registered."""
         from veronica.distribution.policy_distributor import PolicyValidationError
         from veronica.types import PolicyConfig
@@ -303,6 +310,57 @@ class TestInvalidPolicyConfigRejected:
             )
             with pytest.raises(PolicyValidationError, match=r"ceiling_usd"):
                 registry.register(bad_policy)
+
+
+# ---------------------------------------------------------------------------
+# 3b. startup_valid field in /health
+# ---------------------------------------------------------------------------
+
+
+class TestStartupValidField:
+    """GET /health must include startup_valid field reflecting key configuration."""
+
+    def test_startup_valid_false_when_no_key(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("VERONICA_API_KEY", raising=False)
+        monkeypatch.delenv("VERONICA_AUTH_DISABLED", raising=False)
+        app = create_app()
+        with TestClient(app, raise_server_exceptions=False) as client:
+            resp = client.get("/health")
+        assert resp.status_code == 200
+        assert resp.json()["startup_valid"] is False
+
+    def test_startup_valid_true_when_key_set(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("VERONICA_API_KEY", "test-key-xyz")
+        app = create_app()
+        with TestClient(app, raise_server_exceptions=False) as client:
+            resp = client.get("/health")
+        assert resp.status_code == 200
+        assert resp.json()["startup_valid"] is True
+
+    def test_startup_valid_true_when_auth_disabled(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("VERONICA_API_KEY", raising=False)
+        monkeypatch.setenv("VERONICA_AUTH_DISABLED", "1")
+        app = create_app()
+        with TestClient(app, raise_server_exceptions=False) as client:
+            resp = client.get("/health")
+        assert resp.status_code == 200
+        assert resp.json()["startup_valid"] is True
+
+    def test_startup_valid_field_present_in_response(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("VERONICA_AUTH_DISABLED", "1")
+        app = create_app()
+        with TestClient(app, raise_server_exceptions=False) as client:
+            resp = client.get("/health")
+        body = resp.json()
+        assert "startup_valid" in body
 
 
 # ---------------------------------------------------------------------------

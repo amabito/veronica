@@ -7,6 +7,7 @@ audit_id    -- UUID4 hex string, unique per decision.
 Both are stable, deterministic (policy_hash) or unpredictable (audit_id)
 identifiers used to correlate control-plane events across the pipeline.
 """
+
 from __future__ import annotations
 
 import hashlib

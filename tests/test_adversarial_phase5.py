@@ -13,6 +13,7 @@ Categories:
   5. TestAdversarialPhase5DataIntegrity    -- circular refs, invalid configs
   6. TestAdversarialPhase5InfoLeakage      -- no internals in error responses
 """
+
 from __future__ import annotations
 
 import threading
@@ -30,6 +31,7 @@ from veronica.api.app import create_app
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _min_policy(chain_id: str = "chain-adv5") -> dict[str, Any]:
     """Minimal valid policy_config payload for rollout creation."""
     return {
@@ -42,7 +44,10 @@ def _min_policy(chain_id: str = "chain-adv5") -> dict[str, Any]:
 
 def _create_rollout(c: TestClient, chain_id: str = "chain-adv5") -> str:
     """Create a DRAFT rollout and return its id."""
-    resp = c.post("/rollouts", json={"policy_config": _min_policy(chain_id), "created_by": "tester"})
+    resp = c.post(
+        "/rollouts",
+        json={"policy_config": _min_policy(chain_id), "created_by": "tester"},
+    )
     assert resp.status_code == 201, resp.text
     return resp.json()["id"]
 
@@ -58,6 +63,7 @@ def _advance_to_active(c: TestClient, rollout_id: str) -> None:
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture()
 def client(monkeypatch: pytest.MonkeyPatch) -> Any:
@@ -109,12 +115,19 @@ class TestAdversarialPhase5InputValidation:
         resp = client.post("/tenants", json={"id": "name-boundary", "name": "n" * 256})
         assert resp.status_code == 201
 
-    def test_tenant_parent_id_with_control_chars_rejected(self, client: TestClient) -> None:
+    def test_tenant_parent_id_with_control_chars_rejected(
+        self, client: TestClient
+    ) -> None:
         """parent_id with control characters must be rejected."""
-        resp = client.post("/tenants", json={"id": "child-x", "name": "child", "parent_id": "bad\x00id"})
+        resp = client.post(
+            "/tenants",
+            json={"id": "child-x", "name": "child", "parent_id": "bad\x00id"},
+        )
         assert resp.status_code == 422
 
-    def test_rollout_created_by_with_semicolon_rejected(self, client: TestClient) -> None:
+    def test_rollout_created_by_with_semicolon_rejected(
+        self, client: TestClient
+    ) -> None:
         """created_by with shell injection char ';' must be rejected by regex."""
         resp = client.post(
             "/rollouts",
@@ -145,7 +158,9 @@ class TestAdversarialPhase5InputValidation:
         )
         assert resp.status_code == 422
 
-    def test_replay_chain_id_exceeding_max_length_rejected(self, client: TestClient) -> None:
+    def test_replay_chain_id_exceeding_max_length_rejected(
+        self, client: TestClient
+    ) -> None:
         """chain_id of 257 chars must be rejected (max 256)."""
         resp = client.post(
             "/replay",
@@ -157,7 +172,9 @@ class TestAdversarialPhase5InputValidation:
         )
         assert resp.status_code == 422
 
-    def test_override_policy_ceiling_usd_negative_rejected(self, client: TestClient) -> None:
+    def test_override_policy_ceiling_usd_negative_rejected(
+        self, client: TestClient
+    ) -> None:
         """override_policy with negative ceiling_usd must be rejected."""
         resp = client.post(
             "/replay",
@@ -175,7 +192,9 @@ class TestAdversarialPhase5InputValidation:
         )
         assert resp.status_code == 422
 
-    def test_override_policy_ceiling_steps_negative_rejected(self, client: TestClient) -> None:
+    def test_override_policy_ceiling_steps_negative_rejected(
+        self, client: TestClient
+    ) -> None:
         """override_policy with negative ceiling_steps must be rejected."""
         resp = client.post(
             "/replay",
@@ -194,7 +213,9 @@ class TestAdversarialPhase5InputValidation:
         )
         assert resp.status_code == 422
 
-    def test_tenant_policy_override_ceiling_usd_negative_rejected(self, client: TestClient) -> None:
+    def test_tenant_policy_override_ceiling_usd_negative_rejected(
+        self, client: TestClient
+    ) -> None:
         """policy_overrides with negative ceiling_usd must be rejected via resolver validation."""
         # Create tenant with invalid override -- route validates via _validate_overrides (key count),
         # but negative value is caught by PolicyResolver._validate_override_value on resolution.
@@ -202,7 +223,11 @@ class TestAdversarialPhase5InputValidation:
         # (key count check only), but effective-policy must reject it.
         client.post(
             "/tenants",
-            json={"id": "neg-ceiling", "name": "neg", "policy_overrides": {"ceiling_usd": -5.0}},
+            json={
+                "id": "neg-ceiling",
+                "name": "neg",
+                "policy_overrides": {"ceiling_usd": -5.0},
+            },
         )
         # The resolver raises ValueError for negative ceiling_usd => route returns 500 or 422.
         # We verify the response is not 200 (negative value must never be silently accepted).
@@ -218,7 +243,9 @@ class TestAdversarialPhase5InputValidation:
 class TestAdversarialPhase5Concurrency:
     """Attacker triggers race conditions on shared registry state."""
 
-    def test_concurrent_rollout_activate_idempotent_or_409(self, client: TestClient) -> None:
+    def test_concurrent_rollout_activate_idempotent_or_409(
+        self, client: TestClient
+    ) -> None:
         """10 threads simultaneously trying to activate the same PROMOTED rollout.
 
         Exactly one must succeed (200). The rest must get 409 (already ACTIVE,
@@ -274,8 +301,12 @@ class TestAdversarialPhase5Concurrency:
         for t in threads:
             t.join()
 
-        assert results.count(201) == 1, f"Exactly one creation must succeed, got {results}"
-        assert all(c in (201, 422) for c in results), f"Unexpected status codes: {results}"
+        assert results.count(201) == 1, (
+            f"Exactly one creation must succeed, got {results}"
+        )
+        assert all(c in (201, 422) for c in results), (
+            f"Unexpected status codes: {results}"
+        )
 
     def test_concurrent_simulate_and_approve(self, client: TestClient) -> None:
         """Concurrent simulate + approve on same DRAFT rollout must not corrupt state.
@@ -294,7 +325,9 @@ class TestAdversarialPhase5Concurrency:
             sim_result.append(r.status_code)
 
         def do_approve() -> None:
-            r = client.post(f"/rollouts/{rollout_id}/approve", json={"actor": "approver"})
+            r = client.post(
+                f"/rollouts/{rollout_id}/approve", json={"actor": "approver"}
+            )
             approve_result.append(r.status_code)
 
         t1 = threading.Thread(target=do_simulate)
@@ -331,7 +364,9 @@ class TestAdversarialPhase5Concurrency:
             t.join()
 
         # Exactly one revoke must succeed; the rest must get 409 (already REVOKED)
-        assert results.count(200) == 1, f"Exactly one revoke must succeed, got {results}"
+        assert results.count(200) == 1, (
+            f"Exactly one revoke must succeed, got {results}"
+        )
         final = client.get(f"/rollouts/{rollout_id}")
         assert final.json()["state"] == "revoked"
 
@@ -353,7 +388,11 @@ class TestAdversarialPhase5DoS:
         overrides = {f"key_{i}": i for i in range(21)}
         resp = client.post(
             "/tenants",
-            json={"id": "too-many-overrides", "name": "dos", "policy_overrides": overrides},
+            json={
+                "id": "too-many-overrides",
+                "name": "dos",
+                "policy_overrides": overrides,
+            },
         )
         assert resp.status_code == 422
         assert "20" in resp.json().get("detail", "")
@@ -370,7 +409,12 @@ class TestAdversarialPhase5DoS:
         from veronica.types import PolicyConfig
 
         reg = RolloutRegistry()
-        policy = PolicyConfig(chain_id="chain-dos", ceiling_usd=1.0, on_exceed="halt", issued_at=time.time())
+        policy = PolicyConfig(
+            chain_id="chain-dos",
+            ceiling_usd=1.0,
+            on_exceed="halt",
+            issued_at=time.time(),
+        )
         rollout = reg.create(policy_config=policy, created_by="tester")
 
         # Build a result that is clearly over 64KB
@@ -408,7 +452,12 @@ class TestAdversarialPhase5DoS:
         from veronica.types import PolicyConfig
 
         reg = RolloutRegistry()
-        policy = PolicyConfig(chain_id="chain-hist", ceiling_usd=1.0, on_exceed="halt", issued_at=time.time())
+        policy = PolicyConfig(
+            chain_id="chain-hist",
+            ceiling_usd=1.0,
+            on_exceed="halt",
+            issued_at=time.time(),
+        )
         rollout = reg.create(policy_config=policy, created_by="tester")
 
         # Each DRAFT->SIMULATED->DRAFT cycle = 2 transitions.
@@ -449,13 +498,17 @@ class TestAdversarialPhase5StateCorruption:
         rollout_id = _create_rollout(client)
         client.post(f"/rollouts/{rollout_id}/revoke", json={"actor": "revoker"})
 
-        resp = client.post(f"/rollouts/{rollout_id}/activate", json={"actor": "attacker"})
+        resp = client.post(
+            f"/rollouts/{rollout_id}/activate", json={"actor": "attacker"}
+        )
         assert resp.status_code == 409
 
     def test_skip_states_draft_to_active_rejected(self, client: TestClient) -> None:
         """Skipping SIMULATED/APPROVED/PROMOTED: DRAFT -> ACTIVE must be rejected."""
         rollout_id = _create_rollout(client)
-        resp = client.post(f"/rollouts/{rollout_id}/activate", json={"actor": "attacker"})
+        resp = client.post(
+            f"/rollouts/{rollout_id}/activate", json={"actor": "attacker"}
+        )
         assert resp.status_code == 409
 
     def test_double_activate_rejected(self, client: TestClient) -> None:
@@ -463,7 +516,9 @@ class TestAdversarialPhase5StateCorruption:
         rollout_id = _create_rollout(client)
         _advance_to_active(client, rollout_id)
 
-        resp = client.post(f"/rollouts/{rollout_id}/activate", json={"actor": "attacker"})
+        resp = client.post(
+            f"/rollouts/{rollout_id}/activate", json={"actor": "attacker"}
+        )
         assert resp.status_code == 409
 
     def test_revoked_then_all_transitions_rejected(self, client: TestClient) -> None:
@@ -496,7 +551,9 @@ class TestAdversarialPhase5StateCorruption:
 class TestAdversarialPhase5DataIntegrity:
     """Attacker tries to corrupt data through circular refs, bad configs, etc."""
 
-    def test_tenant_circular_parent_reference_rejected(self, client: TestClient) -> None:
+    def test_tenant_circular_parent_reference_rejected(
+        self, client: TestClient
+    ) -> None:
         """Creating a parent reference cycle must be rejected.
 
         After creating A and B (B's parent = A), attempting to update A so that
@@ -519,7 +576,9 @@ class TestAdversarialPhase5DataIntegrity:
 
         # Manually insert a circular edge on the internal registry state to create A->B->A cycle.
         # The registry stores deepcopies, so we must mutate the internal dict directly.
-        reg._tenants["circ-a"].parent_id = "circ-b"  # force the cycle on the stored object
+        reg._tenants[
+            "circ-a"
+        ].parent_id = "circ-b"  # force the cycle on the stored object
         with pytest.raises(RuntimeError, match="[Cc]ircular"):
             reg.get_ancestors("circ-b")
 
@@ -545,11 +604,15 @@ class TestAdversarialPhase5DataIntegrity:
 
         # Registering one more node (the 102nd) requires walking MAX_DEPTH+1 ancestors.
         # When depth reaches MAX_DEPTH (== 100), the guard fires: RuntimeError.
-        overflow_node = TenantNode(id="deep-overflow", name="Overflow", parent_id=prev_id)
+        overflow_node = TenantNode(
+            id="deep-overflow", name="Overflow", parent_id=prev_id
+        )
         with pytest.raises(RuntimeError, match="[Cc]ircular"):
             reg.register(overflow_node)
 
-    def test_rollout_create_with_invalid_policy_config_rejected(self, client: TestClient) -> None:
+    def test_rollout_create_with_invalid_policy_config_rejected(
+        self, client: TestClient
+    ) -> None:
         """Rollout creation with missing required policy fields must be rejected."""
         resp = client.post(
             "/rollouts",
@@ -560,7 +623,9 @@ class TestAdversarialPhase5DataIntegrity:
         )
         assert resp.status_code == 422
 
-    def test_replay_override_policy_missing_chain_id_rejected(self, client: TestClient) -> None:
+    def test_replay_override_policy_missing_chain_id_rejected(
+        self, client: TestClient
+    ) -> None:
         """override_policy without chain_id must be rejected (422)."""
         resp = client.post(
             "/replay",
@@ -577,7 +642,9 @@ class TestAdversarialPhase5DataIntegrity:
         )
         assert resp.status_code == 422
 
-    def test_replay_override_policy_missing_ceiling_usd_rejected(self, client: TestClient) -> None:
+    def test_replay_override_policy_missing_ceiling_usd_rejected(
+        self, client: TestClient
+    ) -> None:
         """override_policy without ceiling_usd must be rejected (422)."""
         resp = client.post(
             "/replay",
@@ -603,7 +670,9 @@ class TestAdversarialPhase5DataIntegrity:
 class TestAdversarialPhase5InfoLeakage:
     """Attacker probes error responses for internal state / UUIDs."""
 
-    def test_invalid_tenant_error_does_not_expose_internals(self, client: TestClient) -> None:
+    def test_invalid_tenant_error_does_not_expose_internals(
+        self, client: TestClient
+    ) -> None:
         """Creating a duplicate tenant must return a user-facing message, not a traceback."""
         client.post("/tenants", json={"id": "dup-info", "name": "First"})
         resp = client.post("/tenants", json={"id": "dup-info", "name": "Second"})
@@ -612,7 +681,9 @@ class TestAdversarialPhase5InfoLeakage:
         assert "traceback" not in body
         assert "self._tenants" not in body
 
-    def test_nonexistent_rollout_404_does_not_leak_uuid_format(self, client: TestClient) -> None:
+    def test_nonexistent_rollout_404_does_not_leak_uuid_format(
+        self, client: TestClient
+    ) -> None:
         """404 for a non-existent rollout must not expose internal UUID structure beyond the ID."""
         fake_id = str(uuid.uuid4())
         resp = client.get(f"/rollouts/{fake_id}")
@@ -623,7 +694,9 @@ class TestAdversarialPhase5InfoLeakage:
         assert "0x" not in detail, "Memory addresses must not appear in error responses"
         assert detail.count("-") <= 6, "Suspiciously many UUIDs in error response"
 
-    def test_replay_store_error_does_not_expose_internals(self, client: TestClient) -> None:
+    def test_replay_store_error_does_not_expose_internals(
+        self, client: TestClient
+    ) -> None:
         """Replay with invalid override_policy must return a sanitized error message."""
         resp = client.post(
             "/replay",

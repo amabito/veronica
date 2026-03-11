@@ -170,7 +170,9 @@ def test_resolver_no_overrides(
 def test_resolver_single_tenant_override(
     resolver: PolicyResolver, registry: TenantRegistry, base_policy: PolicyConfig
 ) -> None:
-    registry.register(TenantNode(id="t", name="T", policy_overrides={"ceiling_usd": 99.0}))
+    registry.register(
+        TenantNode(id="t", name="T", policy_overrides={"ceiling_usd": 99.0})
+    )
     result = resolver.resolve("t", registry, base_policy)
     assert result.ceiling_usd == 99.0
 
@@ -178,9 +180,16 @@ def test_resolver_single_tenant_override(
 def test_resolver_inheritance_child_wins(
     resolver: PolicyResolver, registry: TenantRegistry, base_policy: PolicyConfig
 ) -> None:
-    registry.register(TenantNode(id="org", name="Org", policy_overrides={"ceiling_usd": 20.0}))
     registry.register(
-        TenantNode(id="team", name="Team", parent_id="org", policy_overrides={"ceiling_usd": 30.0})
+        TenantNode(id="org", name="Org", policy_overrides={"ceiling_usd": 20.0})
+    )
+    registry.register(
+        TenantNode(
+            id="team",
+            name="Team",
+            parent_id="org",
+            policy_overrides={"ceiling_usd": 30.0},
+        )
     )
     result = resolver.resolve("team", registry, base_policy)
     assert result.ceiling_usd == 30.0
@@ -189,7 +198,9 @@ def test_resolver_inheritance_child_wins(
 def test_resolver_inheritance_parent_propagates(
     resolver: PolicyResolver, registry: TenantRegistry, base_policy: PolicyConfig
 ) -> None:
-    registry.register(TenantNode(id="org", name="Org", policy_overrides={"ceiling_usd": 50.0}))
+    registry.register(
+        TenantNode(id="org", name="Org", policy_overrides={"ceiling_usd": 50.0})
+    )
     registry.register(TenantNode(id="team", name="Team", parent_id="org"))
     result = resolver.resolve("team", registry, base_policy)
     assert result.ceiling_usd == 50.0
@@ -207,7 +218,11 @@ def test_resolver_ignores_unknown_override_fields(
     resolver: PolicyResolver, registry: TenantRegistry, base_policy: PolicyConfig
 ) -> None:
     registry.register(
-        TenantNode(id="t", name="T", policy_overrides={"not_a_real_field": 999, "ceiling_usd": 5.0})
+        TenantNode(
+            id="t",
+            name="T",
+            policy_overrides={"not_a_real_field": 999, "ceiling_usd": 5.0},
+        )
     )
     result = resolver.resolve("t", registry, base_policy)
     assert result.ceiling_usd == 5.0
@@ -257,7 +272,9 @@ def test_api_get_tenant_not_found(client) -> None:
 
 def test_api_create_tenant_with_parent(client) -> None:
     client.post("/tenants", json={"id": "org", "name": "Org"})
-    resp = client.post("/tenants", json={"id": "team", "name": "Team", "parent_id": "org"})
+    resp = client.post(
+        "/tenants", json={"id": "team", "name": "Team", "parent_id": "org"}
+    )
     assert resp.status_code == 201
     assert resp.json()["parent_id"] == "org"
 

@@ -1,13 +1,14 @@
 # src/veronica/adaptive_planner.py
 """VERONICA OS planner -- AdaptivePlanner with error-class-aware ceiling adjustment."""
+
 from __future__ import annotations
 
 from veronica.types import AnalysisResult, BudgetState, CostEstimate, DesiredPolicy
 
-_HALTED_FACTOR = 0.50    # -50%
-_ERROR_FACTOR = 0.85     # -15%
-_TIMEOUT_FACTOR = 0.90   # -10%
-_LOOSEN_FACTOR = 1.03    # +3%
+_HALTED_FACTOR = 0.50  # -50%
+_ERROR_FACTOR = 0.85  # -15%
+_TIMEOUT_FACTOR = 0.90  # -10%
+_LOOSEN_FACTOR = 1.03  # +3%
 
 _DEFAULT_STEPS = 100
 _DEFAULT_TOKENS_OUT = 50_000
@@ -115,7 +116,9 @@ class AdaptivePlanner:
         # This allows RuleAnalyzer (which emits repeated_failure/depth_anomaly)
         # to produce the correct tightening factor without halt_tighten signals.
         if analysis.signals:
-            has_critical_severity = any(s.severity == "critical" for s in analysis.signals)
+            has_critical_severity = any(
+                s.severity == "critical" for s in analysis.signals
+            )
             if has_critical_severity:
                 return _HALTED_FACTOR
             return _ERROR_FACTOR

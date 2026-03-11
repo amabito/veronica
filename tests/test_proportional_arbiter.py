@@ -1,5 +1,6 @@
 # tests/test_proportional_arbiter.py
 """Tests for veronica.proportional_arbiter -- priority-weighted budget allocation."""
+
 from __future__ import annotations
 
 
@@ -9,11 +10,18 @@ from veronica.proportional_arbiter import ProportionalArbiter
 from veronica.types import DesiredPolicy
 
 
-def _desired(chain_id: str = "c1", ceiling: float = 1.0, priority: int = 50) -> DesiredPolicy:
+def _desired(
+    chain_id: str = "c1", ceiling: float = 1.0, priority: int = 50
+) -> DesiredPolicy:
     return DesiredPolicy(
-        chain_id=chain_id, ceiling_usd=ceiling, ceiling_steps=100,
-        ceiling_tokens_out=50000, on_exceed="halt",
-        fallback_model=None, timeout_ms=30000, priority=priority,
+        chain_id=chain_id,
+        ceiling_usd=ceiling,
+        ceiling_steps=100,
+        ceiling_tokens_out=50000,
+        on_exceed="halt",
+        fallback_model=None,
+        timeout_ms=30000,
+        priority=priority,
     )
 
 
@@ -27,8 +35,8 @@ class TestProportionalArbiter:
     def test_proportional_allocation_by_priority(self) -> None:
         arbiter = ProportionalArbiter()
         desires = [
-            _desired("c1", 5.0, 75),   # 3x priority
-            _desired("c2", 5.0, 25),   # 1x priority
+            _desired("c1", 5.0, 75),  # 3x priority
+            _desired("c2", 5.0, 25),  # 1x priority
         ]
         result = arbiter.arbitrate(desires, 4.0)
         assert result["c1"].ceiling_usd > result["c2"].ceiling_usd
@@ -70,9 +78,7 @@ class TestProportionalArbiter:
 
     def test_min_allocation_not_applied_when_budget_tight(self) -> None:
         arbiter = ProportionalArbiter()
-        desires = [
-            _desired(f"c{i}", 0.001, 50) for i in range(200)
-        ]
+        desires = [_desired(f"c{i}", 0.001, 50) for i in range(200)]
         # Budget cannot cover 200 * 0.01 = 2.0
         result = arbiter.arbitrate(desires, 0.50)
         total = sum(pc.ceiling_usd for pc in result.values())
@@ -81,8 +87,8 @@ class TestProportionalArbiter:
     def test_ceiling_cap_surplus_redistribution(self) -> None:
         arbiter = ProportionalArbiter()
         desires = [
-            _desired("c1", 0.50, 50),   # desired only 0.50
-            _desired("c2", 10.0, 50),   # desired 10.0
+            _desired("c1", 0.50, 50),  # desired only 0.50
+            _desired("c2", 10.0, 50),  # desired 10.0
         ]
         result = arbiter.arbitrate(desires, 5.0)
         # c1 capped at 0.50, surplus goes to c2

@@ -1,5 +1,6 @@
 # src/veronica/rollouts/registry.py
 """Thread-safe in-memory registry for rollout lifecycle management."""
+
 from __future__ import annotations
 
 import copy
@@ -20,9 +21,21 @@ class InvalidTransitionError(Exception):
 
 VALID_TRANSITIONS: dict[RolloutState, set[RolloutState]] = {
     RolloutState.DRAFT: {RolloutState.SIMULATED, RolloutState.REVOKED},
-    RolloutState.SIMULATED: {RolloutState.APPROVED, RolloutState.REVOKED, RolloutState.DRAFT},
-    RolloutState.APPROVED: {RolloutState.PROMOTED, RolloutState.REVOKED, RolloutState.DRAFT},
-    RolloutState.PROMOTED: {RolloutState.ACTIVE, RolloutState.REVOKED, RolloutState.APPROVED},
+    RolloutState.SIMULATED: {
+        RolloutState.APPROVED,
+        RolloutState.REVOKED,
+        RolloutState.DRAFT,
+    },
+    RolloutState.APPROVED: {
+        RolloutState.PROMOTED,
+        RolloutState.REVOKED,
+        RolloutState.DRAFT,
+    },
+    RolloutState.PROMOTED: {
+        RolloutState.ACTIVE,
+        RolloutState.REVOKED,
+        RolloutState.APPROVED,
+    },
     RolloutState.ACTIVE: {RolloutState.REVOKED},
     RolloutState.REVOKED: set(),
 }
@@ -70,7 +83,11 @@ class RolloutRegistry:
         """
         with self._lock:
             if state_filter is not None:
-                all_items = [copy.deepcopy(r) for r in self._rollouts.values() if r.state == state_filter]
+                all_items = [
+                    copy.deepcopy(r)
+                    for r in self._rollouts.values()
+                    if r.state == state_filter
+                ]
             else:
                 all_items = [copy.deepcopy(r) for r in self._rollouts.values()]
 
@@ -81,7 +98,9 @@ class RolloutRegistry:
         end = start + per_page
         return all_items[start:end], total
 
-    def transition(self, rollout_id: str, target_state: RolloutState, actor: str) -> Rollout:
+    def transition(
+        self, rollout_id: str, target_state: RolloutState, actor: str
+    ) -> Rollout:
         """Transition a rollout to a new state.
 
         Args:
@@ -128,9 +147,7 @@ class RolloutRegistry:
                 rollout.simulation_result = None
             return copy.deepcopy(rollout)
 
-    def set_simulation_result(
-        self, rollout_id: str, result: dict
-    ) -> Rollout:
+    def set_simulation_result(self, rollout_id: str, result: dict) -> Rollout:
         """Store simulation result on an existing rollout in DRAFT state.
 
         Raises KeyError if the rollout does not exist.

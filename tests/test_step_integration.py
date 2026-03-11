@@ -1,5 +1,6 @@
 # tests/test_step_integration.py
 """Tests for Phase 6b: LLM integration adapter (step/run_step)."""
+
 from __future__ import annotations
 
 import time
@@ -20,16 +21,23 @@ def _empty_intent(
     request_id: str = "r1",
 ) -> StepIntent:
     return StepIntent(
-        step_id=step_id, request_id=request_id, chain_id=chain_id,
-        kind="llm", model="gpt-4", tool_name=None,
-        timeout_ms=30_000, metadata={},
+        step_id=step_id,
+        request_id=request_id,
+        chain_id=chain_id,
+        kind="llm",
+        model="gpt-4",
+        tool_name=None,
+        timeout_ms=30_000,
+        metadata={},
     )
 
 
 class TestFallbackSnapshot:
     def test_fallback_snapshot_passes_collector(self) -> None:
         """Fallback snapshot is consumable by SimpleCollector and events contain step_id."""
-        intent = _empty_intent(step_id="test-step-1", chain_id="chain-a", request_id="req-x")
+        intent = _empty_intent(
+            step_id="test-step-1", chain_id="chain-a", request_id="req-x"
+        )
         snapshot = _make_fallback_snapshot(intent, "test_reason")
 
         # Verify snapshot fields
@@ -85,31 +93,57 @@ from veronica_core.containment.execution_context import ExecutionContext
 from veronica_core.shield.hooks import Decision
 
 from veronica.os import StepContext
-from veronica.types import PolicyConfig, StepHandle, CostEstimate, DesiredPolicy, DecisionMeta
+from veronica.types import (
+    PolicyConfig,
+    StepHandle,
+    CostEstimate,
+    DesiredPolicy,
+    DecisionMeta,
+)
 
 
 def _make_handle(kind: str = "llm") -> StepHandle:
     intent = StepIntent(
-        step_id="s1", request_id="r1", chain_id="c1",
-        kind=kind, model="gpt-4", tool_name=None,
-        timeout_ms=30_000, metadata={},
+        step_id="s1",
+        request_id="r1",
+        chain_id="c1",
+        kind=kind,
+        model="gpt-4",
+        tool_name=None,
+        timeout_ms=30_000,
+        metadata={},
     )
     policy = PolicyConfig(
-        chain_id="c1", ceiling_usd=1.0, on_exceed="halt", issued_at=time.time(),
+        chain_id="c1",
+        ceiling_usd=1.0,
+        on_exceed="halt",
+        issued_at=time.time(),
     )
     desired = DesiredPolicy(
-        chain_id="c1", ceiling_usd=1.0, ceiling_steps=100,
-        ceiling_tokens_out=50_000, on_exceed="halt",
-        fallback_model=None, timeout_ms=30_000, priority=50,
+        chain_id="c1",
+        ceiling_usd=1.0,
+        ceiling_steps=100,
+        ceiling_tokens_out=50_000,
+        on_exceed="halt",
+        fallback_model=None,
+        timeout_ms=30_000,
+        priority=50,
     )
     cost = CostEstimate(
-        estimated_usd=0.01, confidence=0.9, model_used="gpt-4", basis="pricing_table",
+        estimated_usd=0.01,
+        confidence=0.9,
+        model_used="gpt-4",
+        basis="pricing_table",
     )
     meta = DecisionMeta(
-        risk_level="nominal", recommendation="continue",
-        degraded=False, stage_time_ms={},
+        risk_level="nominal",
+        recommendation="continue",
+        degraded=False,
+        stage_time_ms={},
     )
-    return StepHandle(intent=intent, policy=policy, desired=desired, cost=cost, decision_meta=meta)
+    return StepHandle(
+        intent=intent, policy=policy, desired=desired, cost=cost, decision_meta=meta
+    )
 
 
 class TestStepContext:
@@ -227,9 +261,14 @@ class TestNormalizeIntent:
         """Empty fields get UUID/default/step-N/30000/{}."""
         vos = VeronicaOS()
         intent = StepIntent(
-            step_id="", request_id="", chain_id="",
-            kind="llm", model="gpt-4", tool_name=None,
-            timeout_ms=0, metadata={},
+            step_id="",
+            request_id="",
+            chain_id="",
+            kind="llm",
+            model="gpt-4",
+            tool_name=None,
+            timeout_ms=0,
+            metadata={},
         )
         result = vos._normalize_intent(intent)
 
@@ -259,9 +298,14 @@ class TestNormalizeIntent:
         """Explicit values are not overwritten; returns same instance."""
         vos = VeronicaOS()
         intent = StepIntent(
-            step_id="my-step", request_id="my-req", chain_id="my-chain",
-            kind="tool", model=None, tool_name="search",
-            timeout_ms=5000, metadata={"key": "val"},
+            step_id="my-step",
+            request_id="my-req",
+            chain_id="my-chain",
+            kind="tool",
+            model=None,
+            tool_name="search",
+            timeout_ms=5000,
+            metadata={"key": "val"},
         )
         result = vos._normalize_intent(intent)
 
@@ -272,9 +316,14 @@ class TestNormalizeIntent:
         """Only empty fields are filled; explicit fields preserved."""
         vos = VeronicaOS()
         intent = StepIntent(
-            step_id="custom-step", request_id="", chain_id="my-chain",
-            kind="llm", model="gpt-4", tool_name=None,
-            timeout_ms=5000, metadata={"x": 1},
+            step_id="custom-step",
+            request_id="",
+            chain_id="my-chain",
+            kind="llm",
+            model="gpt-4",
+            tool_name=None,
+            timeout_ms=5000,
+            metadata={"x": 1},
         )
         result = vos._normalize_intent(intent)
 
@@ -290,9 +339,14 @@ class TestRunStep:
         """run_step produces a result and commits to store."""
         vos = VeronicaOS()
         intent = StepIntent(
-            step_id="", request_id="", chain_id="",
-            kind="llm", model="gpt-4", tool_name=None,
-            timeout_ms=0, metadata={},
+            step_id="",
+            request_id="",
+            chain_id="",
+            kind="llm",
+            model="gpt-4",
+            tool_name=None,
+            timeout_ms=0,
+            metadata={},
         )
 
         result = vos.run_step(intent, lambda: "hello")

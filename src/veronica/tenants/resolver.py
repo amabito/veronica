@@ -21,15 +21,23 @@ def _validate_override_value(key: str, value: object) -> None:
     """
     if key == "ceiling_usd":
         if isinstance(value, bool) or not isinstance(value, (int, float)):
-            raise ValueError(f"policy_overrides[{key!r}] must be a number, got {type(value).__name__!r}")
+            raise ValueError(
+                f"policy_overrides[{key!r}] must be a number, got {type(value).__name__!r}"
+            )
         if not math.isfinite(value) or value < 0:
-            raise ValueError(f"policy_overrides[{key!r}] must be a finite non-negative number, got {value!r}")
+            raise ValueError(
+                f"policy_overrides[{key!r}] must be a finite non-negative number, got {value!r}"
+            )
 
     elif key == "priority":
         if not isinstance(value, int) or isinstance(value, bool):
-            raise ValueError(f"policy_overrides[{key!r}] must be an int, got {type(value).__name__!r}")
+            raise ValueError(
+                f"policy_overrides[{key!r}] must be an int, got {type(value).__name__!r}"
+            )
         if not (0 <= value <= 100):
-            raise ValueError(f"policy_overrides[{key!r}] must be in range 0-100, got {value!r}")
+            raise ValueError(
+                f"policy_overrides[{key!r}] must be in range 0-100, got {value!r}"
+            )
 
     elif key == "timeout_ms":
         if value is not None:
@@ -38,7 +46,9 @@ def _validate_override_value(key: str, value: object) -> None:
                     f"policy_overrides[{key!r}] must be a number or None, got {type(value).__name__!r}"
                 )
             if not math.isfinite(value) or value < 0:
-                raise ValueError(f"policy_overrides[{key!r}] must be a finite non-negative number, got {value!r}")
+                raise ValueError(
+                    f"policy_overrides[{key!r}] must be a finite non-negative number, got {value!r}"
+                )
 
     elif key in ("ceiling_tokens_out", "ceiling_steps", "rate_ceiling_calls"):
         if value is not None:
@@ -47,7 +57,9 @@ def _validate_override_value(key: str, value: object) -> None:
                     f"policy_overrides[{key!r}] must be an int or None, got {type(value).__name__!r}"
                 )
             if value < 0:
-                raise ValueError(f"policy_overrides[{key!r}] must be >= 0, got {value!r}")
+                raise ValueError(
+                    f"policy_overrides[{key!r}] must be >= 0, got {value!r}"
+                )
 
     elif key == "rate_window_seconds":
         if value is not None:
@@ -56,11 +68,15 @@ def _validate_override_value(key: str, value: object) -> None:
                     f"policy_overrides[{key!r}] must be a number or None, got {type(value).__name__!r}"
                 )
             if not math.isfinite(value) or value < 0:
-                raise ValueError(f"policy_overrides[{key!r}] must be a finite non-negative number, got {value!r}")
+                raise ValueError(
+                    f"policy_overrides[{key!r}] must be a finite non-negative number, got {value!r}"
+                )
 
     elif key == "on_exceed":
         if not isinstance(value, str):
-            raise ValueError(f"policy_overrides[{key!r}] must be a str, got {type(value).__name__!r}")
+            raise ValueError(
+                f"policy_overrides[{key!r}] must be a str, got {type(value).__name__!r}"
+            )
         if value not in _ON_EXCEED_VALUES:
             raise ValueError(
                 f"policy_overrides[{key!r}] must be one of {sorted(_ON_EXCEED_VALUES)!r}, got {value!r}"
@@ -83,7 +99,9 @@ def _validate_override_value(key: str, value: object) -> None:
                     f"policy_overrides[{key!r}] must be a number or None, got {type(value).__name__!r}"
                 )
             if not math.isfinite(value) or value < 0:
-                raise ValueError(f"policy_overrides[{key!r}] must be a finite non-negative number, got {value!r}")
+                raise ValueError(
+                    f"policy_overrides[{key!r}] must be a finite non-negative number, got {value!r}"
+                )
 
     else:
         raise ValueError(f"policy_overrides[{key!r}] has no validation rule")

@@ -9,14 +9,14 @@ from fastapi.testclient import TestClient
 from veronica.api.app import create_app
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()
 def client():
     app = create_app()
     with TestClient(app, follow_redirects=True) as c:
         yield c
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()
 def client_no_redirect():
     app = create_app()
     with TestClient(app, follow_redirects=False) as c:

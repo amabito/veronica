@@ -186,8 +186,8 @@ class TestExportAuthentication:
         monkeypatch.delenv("VERONICA_API_KEY", raising=False)
         monkeypatch.delenv("VERONICA_AUTH_DISABLED", raising=False)
         app = create_app()
-        c = TestClient(app, raise_server_exceptions=False)
-        resp = c.get("/export")
+        with TestClient(app, raise_server_exceptions=False) as c:
+            resp = c.get("/export")
         assert resp.status_code == 503
 
 

@@ -132,13 +132,13 @@ class TestOpenAPIAuthExemption:
     ) -> None:
         monkeypatch.setenv("VERONICA_API_KEY", "secret")
         app = create_app()
-        c = TestClient(app)
-        resp = c.get("/openapi.json")
+        with TestClient(app) as c:
+            resp = c.get("/openapi.json")
         assert resp.status_code == 200
 
     def test_docs_exempt_from_auth(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("VERONICA_API_KEY", "secret")
         app = create_app()
-        c = TestClient(app)
-        resp = c.get("/docs")
+        with TestClient(app) as c:
+            resp = c.get("/docs")
         assert resp.status_code == 200

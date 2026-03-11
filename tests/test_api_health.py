@@ -51,8 +51,8 @@ class TestHealthEndpoint:
     def test_no_auth_required(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("VERONICA_API_KEY", "secret")
         app = create_app()
-        c = TestClient(app)
-        resp = c.get("/health")
+        with TestClient(app) as c:
+            resp = c.get("/health")
         assert resp.status_code == 200
 
     def test_uptime_increases_over_calls(self, client: TestClient) -> None:

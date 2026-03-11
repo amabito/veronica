@@ -20,21 +20,29 @@ from veronica.api.app import create_app
 # ---------------------------------------------------------------------------
 
 
-def _make_client_no_auth(monkeypatch: pytest.MonkeyPatch) -> TestClient:
+from contextlib import contextmanager
+from collections.abc import Iterator
+
+
+@contextmanager
+def _make_client_no_auth(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
     """Client with no API key and no VERONICA_AUTH_DISABLED."""
     monkeypatch.delenv("VERONICA_API_KEY", raising=False)
     monkeypatch.delenv("VERONICA_AUTH_DISABLED", raising=False)
     app = create_app()
-    return TestClient(app, raise_server_exceptions=False)
+    with TestClient(app, raise_server_exceptions=False) as c:
+        yield c
 
 
+@contextmanager
 def _make_client_with_key(
     monkeypatch: pytest.MonkeyPatch, key: str = "secure-key-0123456789abcdef01234567"
-) -> TestClient:
+) -> Iterator[TestClient]:
     """Client with a configured API key."""
     monkeypatch.setenv("VERONICA_API_KEY", key)
     app = create_app()
-    return TestClient(app, raise_server_exceptions=False)
+    with TestClient(app, raise_server_exceptions=False) as c:
+        yield c
 
 
 # ---------------------------------------------------------------------------
@@ -48,57 +56,57 @@ class TestAuthFailClosed:
     def test_policies_returns_503_when_no_key(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        client = _make_client_no_auth(monkeypatch)
-        resp = client.get("/policies")
-        assert resp.status_code == 503
+        with _make_client_no_auth(monkeypatch) as client:
+            resp = client.get("/policies")
+            assert resp.status_code == 503
 
     def test_events_returns_503_when_no_key(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        client = _make_client_no_auth(monkeypatch)
-        resp = client.get("/events")
-        assert resp.status_code == 503
+        with _make_client_no_auth(monkeypatch) as client:
+            resp = client.get("/events")
+            assert resp.status_code == 503
 
     def test_simulate_returns_503_when_no_key(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        client = _make_client_no_auth(monkeypatch)
-        resp = client.post("/simulate")
-        assert resp.status_code == 503
+        with _make_client_no_auth(monkeypatch) as client:
+            resp = client.post("/simulate")
+            assert resp.status_code == 503
 
     def test_503_has_detail_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        client = _make_client_no_auth(monkeypatch)
-        resp = client.get("/policies")
-        assert resp.status_code == 503
-        body = resp.json()
-        assert "detail" in body
+        with _make_client_no_auth(monkeypatch) as client:
+            resp = client.get("/policies")
+            assert resp.status_code == 503
+            body = resp.json()
+            assert "detail" in body
 
     def test_503_detail_mentions_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Error message must guide the operator -- 'API key not configured'."""
-        client = _make_client_no_auth(monkeypatch)
-        resp = client.get("/policies")
-        assert resp.status_code == 503
-        detail = resp.json().get("detail", "")
-        assert "key" in detail.lower() or "configured" in detail.lower(), (
-            f"503 detail should mention 'key' or 'configured', got: {detail!r}"
-        )
+        with _make_client_no_auth(monkeypatch) as client:
+            resp = client.get("/policies")
+            assert resp.status_code == 503
+            detail = resp.json().get("detail", "")
+            assert "key" in detail.lower() or "configured" in detail.lower(), (
+                f"503 detail should mention 'key' or 'configured', got: {detail!r}"
+            )
 
     def test_health_still_accessible_when_no_key(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Health check is always exempt from auth -- operators need it for liveness."""
-        client = _make_client_no_auth(monkeypatch)
-        resp = client.get("/health")
-        assert resp.status_code == 200
+        with _make_client_no_auth(monkeypatch) as client:
+            resp = client.get("/health")
+            assert resp.status_code == 200
 
     def test_auth_disabled_bypasses_503(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """VERONICA_AUTH_DISABLED=1 must opt out of fail-closed (explicit operator choice)."""
         monkeypatch.delenv("VERONICA_API_KEY", raising=False)
         monkeypatch.setenv("VERONICA_AUTH_DISABLED", "1")
         app = create_app()
-        client = TestClient(app, raise_server_exceptions=False)
-        resp = client.get("/health")
-        assert resp.status_code == 200
+        with TestClient(app, raise_server_exceptions=False) as client:
+            resp = client.get("/health")
+            assert resp.status_code == 200
 
     @pytest.mark.parametrize("bad_value", ["yes", "true", "True", "0", "false"])
     def test_wrong_value_for_auth_disabled_does_not_bypass(
@@ -108,11 +116,11 @@ class TestAuthFailClosed:
         monkeypatch.delenv("VERONICA_API_KEY", raising=False)
         monkeypatch.setenv("VERONICA_AUTH_DISABLED", bad_value)
         app = create_app()
-        client = TestClient(app, raise_server_exceptions=False)
-        resp = client.get("/policies")
-        assert resp.status_code == 503, (
-            f"Expected 503 with VERONICA_AUTH_DISABLED={bad_value!r}, got {resp.status_code}"
-        )
+        with TestClient(app, raise_server_exceptions=False) as client:
+            resp = client.get("/policies")
+            assert resp.status_code == 503, (
+                f"Expected 503 with VERONICA_AUTH_DISABLED={bad_value!r}, got {resp.status_code}"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -199,11 +207,6 @@ class TestHealthDegradedWhenStoreUnavailable:
 
 class TestInvalidPolicyConfigRejected:
     """Invalid PolicyConfig must be rejected with a clear error -- not silently accepted."""
-
-    def _make_client(self, monkeypatch: pytest.MonkeyPatch) -> TestClient:
-        monkeypatch.setenv("VERONICA_AUTH_DISABLED", "1")
-        app = create_app()
-        return TestClient(app, raise_server_exceptions=False)
 
     def test_negative_ceiling_usd_rejected(
         self, monkeypatch: pytest.MonkeyPatch
@@ -365,26 +368,26 @@ class TestMissingConfigErrorMessages:
     """Error messages must be actionable for operators."""
 
     def test_503_detail_is_string(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        client = _make_client_no_auth(monkeypatch)
-        resp = client.get("/policies")
-        assert resp.status_code == 503
-        assert isinstance(resp.json().get("detail"), str)
+        with _make_client_no_auth(monkeypatch) as client:
+            resp = client.get("/policies")
+            assert resp.status_code == 503
+            assert isinstance(resp.json().get("detail"), str)
 
     def test_503_detail_is_not_empty(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        client = _make_client_no_auth(monkeypatch)
-        resp = client.get("/policies")
-        assert resp.status_code == 503
-        assert resp.json()["detail"].strip() != ""
+        with _make_client_no_auth(monkeypatch) as client:
+            resp = client.get("/policies")
+            assert resp.status_code == 503
+            assert resp.json()["detail"].strip() != ""
 
     def test_401_detail_mentions_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """401 when a key is configured but wrong -- message must guide operator."""
-        client = _make_client_with_key(monkeypatch)
-        resp = client.get("/policies", headers={"X-Veronica-Key": "wrong"})
-        assert resp.status_code == 401
-        detail = resp.json().get("detail", "")
-        assert "key" in detail.lower() or "invalid" in detail.lower(), (
-            f"401 detail should mention 'key' or 'invalid', got: {detail!r}"
-        )
+        with _make_client_with_key(monkeypatch) as client:
+            resp = client.get("/policies", headers={"X-Veronica-Key": "wrong"})
+            assert resp.status_code == 401
+            detail = resp.json().get("detail", "")
+            assert "key" in detail.lower() or "invalid" in detail.lower(), (
+                f"401 detail should mention 'key' or 'invalid', got: {detail!r}"
+            )
 
     def test_health_error_message_does_not_expose_internals(
         self, monkeypatch: pytest.MonkeyPatch

@@ -22,7 +22,7 @@ First publication to PyPI as `veronica-cp`.
 
 ---
 
-## [0.8.0] -- 2026-03-11 -- Control Plane GA
+## [0.8.0] -- 2026-03-11 -- Initial Public Release
 
 Full control-plane implementation: HTTP API, dashboard UI, deployment stack,
 tenant hierarchy, rollout pipeline, incident replay, and design partner docs.

@@ -1,51 +1,70 @@
 # VERONICA
 
 ![PyPI](https://img.shields.io/pypi/v/veronica-cp?label=PyPI&cacheSeconds=60)
-![CI](https://img.shields.io/badge/tests-1197%20passing-brightgreen)
+![CI](https://img.shields.io/badge/tests-1200%20passing-brightgreen)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 **LLM governance control plane.**
 
-Policy authoring, simulation, rollout pipelines, tenant hierarchy, incident replay,
-and audit dashboards -- built on [veronica-core](https://github.com/amabito/veronica-core).
+LLM agent systems fail silently -- budget overruns, runaway loops, policy violations surface
+as production incidents, not compile errors. VERONICA lets you author enforcement policies,
+test them in simulation, roll them out through approval gates, and audit what happened --
+before the cost spike hits your dashboard.
+
+Built on [veronica-core](https://github.com/amabito/veronica-core) (the enforcement kernel).
+The kernel enforces inline. The control plane manages from the side.
 
 ---
 
 ## What This Is
 
-VERONICA is the control plane for [veronica-core](https://github.com/amabito/veronica-core).
+VERONICA is the management layer for [veronica-core](https://github.com/amabito/veronica-core).
 
 veronica-core is the deterministic enforcement kernel -- cost ceilings, step limits,
-circuit breakers, distributed budget. It runs local, has no dependencies, and its
-guarantees are unconditional.
+circuit breakers, distributed budget. It runs in your application's process, has no
+dependencies, and its guarantees are unconditional.
 
-This repository is the management layer on top: author policies, test them in simulation,
-roll them out through approval gates, organize tenants, and audit what happened.
+This repository is the control plane: author policies, test them in simulation,
+roll them out through approval gates, organize tenants, and audit decisions.
 
 ```
-Your Application
-       |
-  veronica-core    -- enforcement kernel (pip install veronica-core)
-       |
-  VERONICA         -- control plane (pip install veronica-cp)
-       |
-  LLM Providers
+Your Application ──► veronica-core ──► LLM Providers
+                     (enforcement)
+                          ▲
+                          │ policy sync / event ingest
+                          │
+                      VERONICA
+                    (control plane)
 ```
+
+veronica-core works without VERONICA. VERONICA makes it manageable.
+
+**This is not** a federation platform, a multi-tenant SaaS, or an observability-only tool.
+Single-org deployment. The kernel does the enforcement; the control plane does the governance.
 
 ---
 
 ## Features
 
+### Policy lifecycle
+
 - **Policy authoring** -- create and version cost/step/token policies per chain via HTTP API
 - **Simulation** -- dry-run steps against a policy before deploying (`POST /simulate`)
 - **Rollout pipeline** -- DRAFT -> SIMULATED -> APPROVED -> PROMOTED -> ACTIVE -> REVOKED
+- **HMAC-signed bundles** -- policy distribution with shared-secret integrity checks (not public-key; internal use)
+
+### Operations and audit
+
 - **Tenant hierarchy** -- org -> team -> chain with policy inheritance and narrowing overrides
 - **Incident replay** -- re-evaluate recorded events under alternative policies
 - **Audit dashboard** -- event log, decision timeline, cost tracking (Grafana + built-in UI)
-- **HMAC-signed bundles** -- immutable policy distribution with integrity verification
+
+### Platform
+
 - **PostgreSQL backend** -- persistent event store (in-memory default for dev)
 - **Prometheus metrics** -- `veronica_decisions_total`, `veronica_cost_usd_total`, etc.
+- **Docker Compose** -- single-command deployment with Grafana and Prometheus
 
 ---
 
@@ -63,10 +82,8 @@ pip install veronica-cp[redis]      # distributed budget (Redis Arbiter)
 pip install veronica-cp[metrics]    # Prometheus metrics exporter
 ```
 
-> **`pip install veronica` is a different, unrelated package on PyPI.**
-> This project's PyPI distribution is `veronica-cp`. The Python import remains `import veronica`.
-> Do not install both `veronica` (PyPI) and `veronica-cp` in the same environment --
-> they share the `veronica` import namespace and will conflict.
+> **Note:** The PyPI package is `veronica-cp` (the `veronica` name belongs to an unrelated project).
+> The Python import remains `import veronica`. Do not install both in the same environment.
 
 ---
 
@@ -102,21 +119,35 @@ curl -X POST http://localhost:8000/simulate \
        "steps":[{"kind":"llm","cost_usd":0.30,"tokens_out":500,"elapsed_ms":200}]}'
 ```
 
-### Embedded Python (for kernel-level integration)
+### Connecting veronica-core to the control plane
 
-```bash
-pip install veronica-cp[metrics]
-```
+veronica-core enforces locally. VERONICA collects events and distributes policies.
+Minimal wiring:
 
 ```python
+from veronica_core import ExecutionContext
 from veronica import VeronicaOS, BufferedEmitter, MetricsSubscriber
 from veronica.metrics_exporter import start_metrics_server
 
+# 1. Start the metrics endpoint
 start_metrics_server()  # :9464/metrics
+
+# 2. Wire the emitter (events flow to VERONICA)
 emitter = BufferedEmitter()
 emitter.subscribe("prometheus", MetricsSubscriber())
+
+# 3. Create the OS layer (bridges kernel <-> control plane)
 vos = VeronicaOS(emitter=emitter)
+
+# 4. Use veronica-core as usual -- the kernel enforces,
+#    VERONICA observes and manages
+with vos.step(chain_id="my-agent", kind="llm") as ctx:
+    result = call_your_llm(prompt="...")
+    ctx.record_cost(result.usage.total_cost)
 ```
+
+The kernel runs inline in your process. VERONICA runs as a separate service.
+If VERONICA is down, veronica-core keeps enforcing with last-known policy.
 
 ---
 
@@ -144,14 +175,14 @@ organizational structure.
 
 ## Status
 
-**veronica-core**: [v3.4.3](https://github.com/amabito/veronica-core) -- stable, 4837 tests.
+**veronica-core**: [v3.6.1](https://github.com/amabito/veronica-core) -- stable, 5535 tests.
 
-**VERONICA (this repo)**: v0.8.1 -- 1197 tests.
+**VERONICA (this repo)**: v0.8.1 -- 1200 tests.
 
 | Version | Milestone |
 |---------|-----------|
 | v0.8.1  | PyPI initial release as `veronica-cp` |
-| v0.8.0  | Control plane GA: HTTP API, dashboard, deploy stack, tenant hierarchy, rollout pipeline, incident replay, design partner docs |
+| v0.8.0  | Initial public release: HTTP API, dashboard, deploy stack, tenant hierarchy, rollout pipeline, incident replay |
 | v0.7.0  | Org policy engine: validate/clamp, `step_denied` metric |
 | v0.6.0  | LLM integration adapter: `step()` context manager |
 | v0.5.0  | Grafana dashboard: metrics exporter, docker-compose |

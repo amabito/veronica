@@ -22,6 +22,14 @@ function showToast(message, type = 'success') {
   setTimeout(() => toast.remove(), 3500);
 }
 
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 let allPolicies = [];
 let currentPolicy = null;
 
@@ -103,7 +111,7 @@ function renderPolicyList(policies) {
   }
   tbody.innerHTML = policies.map(p => `
     <tr class="policy-row" data-chain="${p.chain_id}" style="cursor:pointer;">
-      <td class="mono">${p.chain_id}</td>
+      <td class="mono">${escHtml(p.chain_id)}</td>
       <td>${decisionBadge(p.on_exceed)}</td>
       <td class="mono">$${(p.ceiling_usd || 0).toFixed(4)}</td>
       <td>${p.priority}</td>
@@ -273,7 +281,7 @@ async function simulatePolicy() {
         <td>${s.kind || '--'}</td>
         <td>$${(s.cost_usd || 0).toFixed(4)}</td>
         <td>${decisionBadgeSimulate(s.decision)}</td>
-        <td style="font-size:11px;color:var(--text-muted)">${s.reason || ''}</td>
+        <td style="font-size:11px;color:var(--text-muted)">${escHtml(s.reason || '')}</td>
       </tr>`
     ).join('');
 
@@ -287,7 +295,7 @@ async function simulatePolicy() {
     simResult.innerHTML = `
       <div class="sim-header">
         ${storeTag}
-        <span class="sim-hash">hash: <code>${data.policy_hash.slice(0, 8)}</code></span>
+        <span class="sim-hash">hash: <code>${(data.policy_hash || '').slice(0, 8)}</code></span>
         <span class="sim-final">${decisionBadgeSimulate(data.final_decision)}</span>
       </div>
       ${stepsSection}
@@ -328,6 +336,8 @@ async function savePolicy() {
       fetchPolicies(); // refresh list
     } else if (resp.status === 409) {
       showToast('Conflict: policy was updated elsewhere. Refresh and try again.', 'error');
+    } else if (resp.status === 403) {
+      showToast('Updates disabled: immutable config mode is active', 'error');
     } else if (resp.status === 422) {
       const data = await resp.json();
       showToast('Validation error: ' + (data.detail || 'unknown'), 'error');

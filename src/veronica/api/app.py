@@ -50,7 +50,7 @@ async def _lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 "VERONICA_DATABASE_URL is set but psycopg/psycopg_pool is not installed. "
                 "Falling back to MemoryStore. Install with: pip install veronica[postgres]"
             )
-            store: MemoryStore = MemoryStore()
+            store = MemoryStore()  # type: ignore[assignment]
         except Exception:
             logger.exception(
                 "Failed to connect to PostgreSQL (%s). Falling back to MemoryStore.",

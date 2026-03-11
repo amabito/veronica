@@ -82,6 +82,10 @@ class PolicyDistributor:
         self._strict = strict
         self._lock = threading.Lock()
         self._version = 0
+        signing_key_raw = os.environ.get("VERONICA_POLICY_SIGNING_KEY", "")
+        self._signing_key: bytes | None = (
+            signing_key_raw.encode() if signing_key_raw else None
+        )
 
     def _next_version(self) -> int:
         with self._lock:
@@ -158,11 +162,10 @@ class PolicyDistributor:
         exec_config = policy.to_exec_config()
         version = self._next_version()
 
-        signing_key_raw = os.environ.get("VERONICA_POLICY_SIGNING_KEY", "")
         policy_signature: str | None = None
-        if signing_key_raw:
+        if self._signing_key:
             policy_signature = _compute_policy_signature(
-                policy_hash, signing_key_raw.encode()
+                policy_hash, self._signing_key
             )
 
         return PolicyBundle(

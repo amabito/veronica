@@ -206,9 +206,8 @@ class PgStore:
                 meta_data = json.loads(meta_json) if meta_json else {}
             except (json.JSONDecodeError, TypeError):
                 pass
-            cost_usd = (
-                float(cost_usd_raw) if math.isfinite(float(cost_usd_raw)) else 0.0
-            )
+            cost_usd_float = float(cost_usd_raw) if cost_usd_raw is not None else 0.0
+            cost_usd = cost_usd_float if math.isfinite(cost_usd_float) else 0.0
             status = meta_data.get("status", "ok")
             if status not in ("ok", "halted", "error", "timeout"):
                 status = "error"

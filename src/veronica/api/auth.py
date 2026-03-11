@@ -36,6 +36,13 @@ _warn_once_lock = threading.Lock()
 _warn_once_done = False
 
 
+def reset_warn_once() -> None:
+    """Reset the warn-once flag. Used by test fixtures to avoid state pollution."""
+    global _warn_once_done  # noqa: PLW0603
+    with _warn_once_lock:
+        _warn_once_done = False
+
+
 def _get_configured_key() -> str | None:
     """Return the configured API key, or None if not set."""
     return os.environ.get(_ENV_VAR)

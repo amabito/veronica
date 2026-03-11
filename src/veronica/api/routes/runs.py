@@ -53,7 +53,6 @@ async def get_run(
         )
 
     total_cost = sum(o.cost_usd for o in chain_outcomes)
-    total_steps = len(chain_outcomes)
     events_count = len(chain_outcomes)
 
     timestamps = [o.timestamp for o in chain_outcomes]
@@ -65,15 +64,15 @@ async def get_run(
         "active" if (now - last_event_at) <= _ACTIVE_WINDOW_SECONDS else "completed"
     )
 
-    # Use the policy_hash of the most recent event
+    # Use the policy_hash of the most recent event; normalize empty string to None
     most_recent = heapq.nlargest(1, chain_outcomes, key=lambda o: o.timestamp)[0]
-    policy_hash = most_recent.policy_hash
+    policy_hash = most_recent.policy_hash or None
 
     return RunDetail(
         chain_id=chain_id,
         status=status,
         total_cost=total_cost,
-        total_steps=total_steps,
+        total_steps=events_count,
         events_count=events_count,
         first_event_at=first_event_at,
         last_event_at=last_event_at,

@@ -22,6 +22,14 @@ function showToast(message, type = 'success') {
   setTimeout(() => toast.remove(), 3500);
 }
 
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 function formatTime(ts) {
   if (!ts) return '--';
   const d = new Date(ts * 1000);
@@ -79,8 +87,8 @@ function updateTable(events) {
   tbody.innerHTML = events.map(e => `
     <tr>
       <td class="mono">${formatTime(e.timestamp)}</td>
-      <td class="mono">${e.chain_id || '--'}</td>
-      <td>${e.operation_name || '--'}</td>
+      <td class="mono">${escHtml(e.chain_id || '--')}</td>
+      <td>${escHtml(e.operation_name || '--')}</td>
       <td>${decisionBadge(e.decision)}</td>
       <td class="mono">${formatCost(e.cost_usd)}</td>
       <td class="mono">${(e.tokens || 0).toLocaleString()}</td>
@@ -163,11 +171,12 @@ document.addEventListener('DOMContentLoaded', () => {
     setInterval(fetchData, 5000);
   }
 
+  let refreshTimer = null;
   const saveBtn = document.getElementById('apikey-save');
   if (saveBtn) {
     saveBtn.addEventListener('click', () => {
       saveApiKey();
-      setInterval(fetchData, 5000);
+      if (!refreshTimer) refreshTimer = setInterval(fetchData, 5000);
     });
   }
 

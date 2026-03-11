@@ -219,7 +219,7 @@ async function fetchEvents() {
     statusMsg.textContent = `Updated ${new Date().toLocaleTimeString()}`;
   } catch (err) {
     statusMsg.textContent = `Error: ${err.message}`;
-    tbody.innerHTML = `<tr><td colspan="8" class="empty-state">Failed to load: ${escHtml(err.message)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="empty-state">Failed to load: ${escHtml(err.message)}</td></tr>`;
     showToast(err.message, 'error');
   } finally {
     state.loading = false;

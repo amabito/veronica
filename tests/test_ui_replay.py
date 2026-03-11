@@ -1,13 +1,12 @@
-from __future__ import annotations
+# tests/test_ui_replay.py
+"""Tests for the /ui/replay page."""
 
-import os
+from __future__ import annotations
 
 import pytest
 from fastapi.testclient import TestClient
 
-os.environ.setdefault("VERONICA_AUTH_DISABLED", "1")
-
-from veronica.api.app import create_app  # noqa: E402
+from veronica.api.app import create_app
 
 
 @pytest.fixture()

@@ -17,3 +17,11 @@ def _disable_auth_in_tests(monkeypatch: pytest.MonkeyPatch) -> None:
     """
     if not os.environ.get("VERONICA_API_KEY"):
         monkeypatch.setenv("VERONICA_AUTH_DISABLED", "1")
+
+
+@pytest.fixture(autouse=True)
+def _reset_auth_warn_once() -> None:
+    """Reset auth module warn-once state between tests to prevent pollution."""
+    from veronica.api.auth import reset_warn_once
+
+    reset_warn_once()

@@ -100,19 +100,19 @@ class TestAuthFailClosed:
         resp = client.get("/health")
         assert resp.status_code == 200
 
+    @pytest.mark.parametrize("bad_value", ["yes", "true", "True", "0", "false"])
     def test_wrong_value_for_auth_disabled_does_not_bypass(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, monkeypatch: pytest.MonkeyPatch, bad_value: str
     ) -> None:
         """VERONICA_AUTH_DISABLED=yes/true/0 must NOT bypass fail-closed -- only '1' counts."""
-        for bad_value in ("yes", "true", "True", "0", "false"):
-            monkeypatch.delenv("VERONICA_API_KEY", raising=False)
-            monkeypatch.setenv("VERONICA_AUTH_DISABLED", bad_value)
-            app = create_app()
-            client = TestClient(app, raise_server_exceptions=False)
-            resp = client.get("/policies")
-            assert resp.status_code == 503, (
-                f"Expected 503 with VERONICA_AUTH_DISABLED={bad_value!r}, got {resp.status_code}"
-            )
+        monkeypatch.delenv("VERONICA_API_KEY", raising=False)
+        monkeypatch.setenv("VERONICA_AUTH_DISABLED", bad_value)
+        app = create_app()
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.get("/policies")
+        assert resp.status_code == 503, (
+            f"Expected 503 with VERONICA_AUTH_DISABLED={bad_value!r}, got {resp.status_code}"
+        )
 
 
 # ---------------------------------------------------------------------------

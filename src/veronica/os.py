@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import threading
 import time
 import uuid
@@ -240,7 +241,7 @@ class VeronicaOS:
             changes["chain_id"] = "default"
         if not intent.step_id:
             changes["step_id"] = f"step-{next(self._step_counter)}"
-        if not intent.timeout_ms:
+        if intent.timeout_ms is None:
             changes["timeout_ms"] = _DEFAULT_TIMEOUT_MS
         if not intent.metadata:
             changes["metadata"] = {}
@@ -531,9 +532,10 @@ class VeronicaOS:
         #    must all be atomic to prevent TOCTOU and context leakage.
         with self._lock:
             self._last_analysis = analysis
-            self._total_spent_usd += outcome.cost_usd
+            cost_to_add = outcome.cost_usd if math.isfinite(outcome.cost_usd) else 0.0
+            self._total_spent_usd += cost_to_add
             self._chain_spent_usd[outcome.chain_id] = (
-                self._chain_spent_usd.get(outcome.chain_id, 0.0) + outcome.cost_usd
+                self._chain_spent_usd.get(outcome.chain_id, 0.0) + cost_to_add
             )
             budget_remaining = self._request_budget_usd - self._total_spent_usd
             budget_ceiling = self._request_budget_usd
@@ -605,13 +607,14 @@ class VeronicaOS:
         """Release resources. Flushes store if store supports close().
 
         Idempotent: calling close() multiple times is safe (no-op after first).
-        If store.close() raises, _closed is reset so a retry is possible.
         """
         if self._closed:
             return
-        if hasattr(self._store, "close"):
-            self._store.close()
-        self._closed = True
+        try:
+            if hasattr(self._store, "close"):
+                self._store.close()
+        finally:
+            self._closed = True
 
     def __enter__(self) -> "VeronicaOS":
         return self

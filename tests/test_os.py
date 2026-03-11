@@ -541,23 +541,21 @@ class TestLifecycleAdversarial:
         vos.close()  # second call should be no-op
         store.close.assert_called_once()
 
-    def test_close_when_store_close_raises_allows_retry(self) -> None:
-        """If store.close() raises, close() must propagate and allow retry."""
+    def test_close_when_store_close_raises_still_marks_closed(self) -> None:
+        """If store.close() raises, _closed is still set to prevent double-close."""
         from unittest.mock import MagicMock
 
         store = MagicMock()
         store.build_history.return_value = MemoryStore().build_history("c1")
-        store.close.side_effect = [RuntimeError("disk full"), None]
+        store.close.side_effect = RuntimeError("disk full")
         vos = VeronicaOS(store=store)
-        # First call raises (store failed to flush)
+        # First call raises but marks _closed = True (prevent double-close on PgStore)
         with pytest.raises(RuntimeError, match="disk full"):
             vos.close()
-        # _closed must NOT be set, so retry is possible
-        assert not vos._closed
-        # Second call succeeds
-        vos.close()
         assert vos._closed
-        assert store.close.call_count == 2
+        # Second call is no-op (idempotent)
+        vos.close()
+        assert store.close.call_count == 1  # not called again
 
     def test_nested_context_managers(self) -> None:
         """Nested 'with' on same instance must work (close is idempotent)."""

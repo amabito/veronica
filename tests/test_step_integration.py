@@ -250,7 +250,7 @@ class TestNormalizeIntent:
             kind="llm",
             model="gpt-4",
             tool_name=None,
-            timeout_ms=0,
+            timeout_ms=None,
             metadata={},
         )
         result = vos._normalize_intent(intent)
@@ -267,7 +267,7 @@ class TestNormalizeIntent:
         n = int(result.step_id.split("-")[1])
         assert n >= 1
 
-        # timeout_ms: 30000
+        # timeout_ms: None -> default 30000
         assert result.timeout_ms == 30_000
 
         # metadata: {}
@@ -275,6 +275,23 @@ class TestNormalizeIntent:
 
         # kind and model preserved
         assert result.kind == "llm"
+
+    def test_timeout_ms_zero_preserved(self) -> None:
+        """timeout_ms=0 is a legitimate value and must not be overwritten."""
+        vos = VeronicaOS()
+        intent = _empty_intent()
+        intent = StepIntent(
+            step_id="s1",
+            request_id="r1",
+            chain_id="c1",
+            kind="llm",
+            model="gpt-4",
+            tool_name=None,
+            timeout_ms=0,
+            metadata={},
+        )
+        result = vos._normalize_intent(intent)
+        assert result.timeout_ms == 0
         assert result.model == "gpt-4"
 
     def test_preserves_explicit_values(self) -> None:

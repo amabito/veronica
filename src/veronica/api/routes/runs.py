@@ -58,7 +58,9 @@ async def get_run(
     )
     events_count = len(chain_outcomes)
 
-    timestamps = [o.timestamp for o in chain_outcomes]
+    timestamps = [o.timestamp for o in chain_outcomes if math.isfinite(o.timestamp)]
+    if not timestamps:
+        raise HTTPException(status_code=404, detail=f"No valid events for chain_id: {chain_id!r}")
     first_event_at = min(timestamps)
     last_event_at = max(timestamps)
 

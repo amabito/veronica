@@ -291,7 +291,8 @@ autoRefresh.addEventListener('change', () => {
   const cid = p.get('chain_id');
   const dec = p.get('decision');
   if (cid) { inChain.value = cid; state.chain_id = cid; }
-  if (dec && selDecision.querySelector(`option[value="${dec}"]`)) {
+  const validDecisions = ['allow','halt','degrade','retry','queue','quarantine','unknown'];
+  if (dec && validDecisions.includes(dec)) {
     selDecision.value = dec; state.decision = dec;
   }
 })();

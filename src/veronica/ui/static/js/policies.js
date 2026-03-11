@@ -137,7 +137,7 @@ async function selectPolicy(chainId) {
     document.getElementById('editor-panel').style.display = 'block';
     // highlight selected row
     document.querySelectorAll('.policy-row').forEach(r => r.classList.remove('selected'));
-    const row = document.querySelector(`.policy-row[data-chain="${chainId}"]`);
+    const row = document.querySelector(`.policy-row[data-chain="${CSS.escape(chainId)}"]`);
     if (row) row.classList.add('selected');
   } catch (err) {
     showToast('Error: ' + err.message, 'error');

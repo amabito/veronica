@@ -187,4 +187,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (e.key === 'Enter') saveBtn && saveBtn.click();
     });
   }
+
+  window.addEventListener('beforeunload', () => {
+    if (refreshTimer) clearInterval(refreshTimer);
+  });
 });

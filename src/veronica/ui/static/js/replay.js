@@ -118,11 +118,13 @@ function renderDiffs(diffs) {
 
 // ---- Render stats pills ----
 function renderStats(result) {
-  const unchanged = result.event_count - result.changed_count;
+  const evCount = Number(result.event_count) || 0;
+  const chCount = Number(result.changed_count) || 0;
+  const unchanged = evCount - chCount;
   statsRow.innerHTML = `
-    <div class="stat-pill"><strong>${result.event_count}</strong>Events</div>
-    <div class="stat-pill"><strong>${result.changed_count}</strong>Changed</div>
-    <div class="stat-pill"><strong>${unchanged}</strong>Unchanged</div>
+    <div class="stat-pill"><strong>${escHtml(String(evCount))}</strong>Events</div>
+    <div class="stat-pill"><strong>${escHtml(String(chCount))}</strong>Changed</div>
+    <div class="stat-pill"><strong>${escHtml(String(unchanged))}</strong>Unchanged</div>
   `;
 }
 
@@ -133,8 +135,9 @@ function showResult(result) {
 
   resultChain.textContent = result.chain_id;
 
-  if (result.changed_count > 0) {
-    resultBadge.innerHTML = `<span class="result-changed">${result.changed_count} decision(s) changed</span>`;
+  const changedNum = Number(result.changed_count) || 0;
+  if (changedNum > 0) {
+    resultBadge.innerHTML = `<span class="result-changed">${escHtml(String(changedNum))} decision(s) changed</span>`;
   } else {
     resultBadge.innerHTML = `<span class="result-changed none">No changes</span>`;
   }
@@ -214,7 +217,8 @@ async function runReplay() {
 
     const result = await resp.json();
     showResult(result);
-    showToast(`Replay complete: ${result.changed_count} change(s)`, result.changed_count > 0 ? 'warning' : 'success');
+    const cc = Number(result.changed_count) || 0;
+    showToast(`Replay complete: ${cc} change(s)`, cc > 0 ? 'warning' : 'success');
   } catch (err) {
     statusMsg.textContent = `Error: ${err.message}`;
     showToast(err.message, 'error');

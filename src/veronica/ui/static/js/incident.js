@@ -260,7 +260,7 @@ function renderPage(items) {
 
   // Scroll focal step into view
   if (focalStepId) {
-    const el = document.getElementById(`step-${focalStepId}`);
+    const el = document.getElementById(`step-${escHtml(focalStepId)}`);
     if (el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
   }
 }

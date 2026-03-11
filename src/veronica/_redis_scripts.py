@@ -48,7 +48,7 @@ local alloc_json = redis.call('GET', KEYS[2])
 
 if not alloc_json then
     -- TTL expired: still deduct actual cost (safe side).
-    local remaining = tonumber(redis.call('GET', KEYS[1]))
+    local remaining = tonumber(redis.call('GET', KEYS[1])) or 0
     local actual = tonumber(ARGV[1])
     local new_remaining = remaining - actual
     if new_remaining < 0 then new_remaining = 0 end
@@ -61,7 +61,7 @@ local reserved = tonumber(alloc.total_reserved_micro)
 local actual = tonumber(ARGV[1])
 local diff = reserved - actual
 
-local remaining = tonumber(redis.call('GET', KEYS[1]))
+local remaining = tonumber(redis.call('GET', KEYS[1])) or 0
 
 if diff > 0 then
     redis.call('SET', KEYS[1], tostring(remaining + diff))

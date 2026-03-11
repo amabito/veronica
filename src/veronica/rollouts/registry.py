@@ -173,3 +173,49 @@ class RolloutRegistry:
                 )
             rollout.simulation_result = copy.deepcopy(result)
             return copy.deepcopy(rollout)
+
+    def simulate(self, rollout_id: str, result: dict, actor: str = "system") -> Rollout:
+        """Atomically set simulation result AND transition to SIMULATED.
+
+        Combines set_simulation_result + transition in a single lock
+        acquisition to prevent TOCTOU races.
+
+        Raises KeyError if the rollout does not exist.
+        Raises InvalidTransitionError if the rollout is not in DRAFT state.
+        Raises ValueError if the serialized result exceeds _MAX_SIM_RESULT_SIZE bytes.
+        """
+        with self._lock:
+            rollout = self._rollouts.get(rollout_id)
+            if rollout is None:
+                raise KeyError(rollout_id)
+            if rollout.state != RolloutState.DRAFT:
+                raise InvalidTransitionError(
+                    f"Cannot simulate: rollout is in {rollout.state.value!r}, expected 'draft'"
+                )
+            try:
+                serialized = json.dumps(result)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("simulation_result is not JSON-serializable") from exc
+            if len(serialized) > _MAX_SIM_RESULT_SIZE:
+                raise ValueError(
+                    f"simulation_result exceeds {_MAX_SIM_RESULT_SIZE} byte limit "
+                    f"({len(serialized)} bytes)"
+                )
+            rollout.simulation_result = copy.deepcopy(result)
+
+            # Transition DRAFT -> SIMULATED within the same lock
+            now = datetime.now(timezone.utc)
+            transition = StateTransition(
+                from_state=rollout.state,
+                to_state=RolloutState.SIMULATED,
+                timestamp=now,
+                actor=actor,
+            )
+            if len(rollout.history) >= _MAX_HISTORY_LENGTH:
+                raise InvalidTransitionError(
+                    f"History limit of {_MAX_HISTORY_LENGTH} entries exceeded for rollout '{rollout_id}'"
+                )
+            rollout.history.append(transition)
+            rollout.state = RolloutState.SIMULATED
+            rollout.updated_at = now
+            return copy.deepcopy(rollout)

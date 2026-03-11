@@ -172,17 +172,11 @@ async def simulate_rollout(
 
     rollout_registry = request.app.state.rollout_registry
     try:
-        rollout_registry.set_simulation_result(rollout_id, sim_result)
+        rollout = rollout_registry.simulate(rollout_id, sim_result, actor="system")
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Rollout '{rollout_id}' not found")
-    except InvalidTransitionError:
-        raise HTTPException(
-            status_code=409, detail="Rollout is not in a simulatable state"
-        )
-
-    rollout = _do_transition(
-        request, rollout_id, RolloutState.SIMULATED, actor="system"
-    )
+    except InvalidTransitionError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
     return _rollout_to_response(rollout)
 
 

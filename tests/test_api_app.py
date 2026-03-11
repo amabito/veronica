@@ -29,7 +29,9 @@ class TestAppFactory:
 
     def test_app_version(self) -> None:
         app = create_app()
-        assert app.version == "0.8.0"
+        from veronica import __version__
+
+        assert app.version == __version__
 
 
 class TestLifespan:

@@ -33,7 +33,9 @@ class TestHealthEndpoint:
         resp = client.get("/health")
         data = resp.json()
         assert "version" in data
-        assert data["version"] == "0.8.0"
+        from veronica import __version__
+
+        assert data["version"] == __version__
 
     def test_kernel_version_present(self, client: TestClient) -> None:
         resp = client.get("/health")

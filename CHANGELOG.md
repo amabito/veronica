@@ -2,6 +2,26 @@
 
 All notable changes to VERONICA (control plane) are documented here.
 
+## [0.8.1] -- 2026-03-11 -- PyPI Initial Release
+
+First publication to PyPI as `veronica-cp`.
+
+### Changed
+
+- PyPI package name: `veronica` -> `veronica-cp` (the `veronica` name on PyPI belongs to an unrelated project)
+- README: rewritten to reflect control plane reality, removed "Execution OS" overclaim
+- All `pip install veronica[extra]` references updated to `pip install veronica-cp[extra]`
+- GitHub About and pyproject.toml description aligned with control plane scope
+- Python import remains `import veronica` (unchanged)
+
+### Added
+
+- Install section in README with namespace conflict warning
+- CI: GitHub Actions publish workflow (on release -> PyPI)
+- CHANGELOG.md
+
+---
+
 ## [0.8.0] -- 2026-03-11 -- Control Plane GA
 
 Full control-plane implementation: HTTP API, dashboard UI, deployment stack,

@@ -49,7 +49,9 @@ class TestOpenAPIMetadata:
         assert openapi_spec["info"]["title"] == "VERONICA Control Plane API"
 
     def test_version(self, openapi_spec: dict) -> None:
-        assert openapi_spec["info"]["version"] == "0.8.0"
+        from veronica import __version__
+
+        assert openapi_spec["info"]["version"] == __version__
 
     def test_description_present(self, openapi_spec: dict) -> None:
         desc = openapi_spec["info"].get("description", "")

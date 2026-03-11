@@ -141,7 +141,7 @@ organizational structure.
 
 **veronica-core**: [v3.4.3](https://github.com/amabito/veronica-core) -- stable, 4837 tests.
 
-**veronica (this repo)**: v0.8.0 -- 1197 tests.
+**veronica-cp (this repo)**: v0.8.1 -- 1197 tests.
 
 | Version | Milestone |
 |---------|-----------|

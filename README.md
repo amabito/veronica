@@ -1,4 +1,9 @@
-# veronica
+# VERONICA
+
+![PyPI](https://img.shields.io/pypi/v/veronica-cp?label=PyPI&cacheSeconds=60)
+![CI](https://img.shields.io/badge/tests-1197%20passing-brightgreen)
+![Python](https://img.shields.io/badge/python-3.10%2B-blue)
+![License](https://img.shields.io/badge/license-MIT-blue)
 
 **LLM governance control plane.**
 
@@ -9,7 +14,7 @@ and audit dashboards -- built on [veronica-core](https://github.com/amabito/vero
 
 ## What This Is
 
-veronica is the control plane for [veronica-core](https://github.com/amabito/veronica-core).
+VERONICA is the control plane for [veronica-core](https://github.com/amabito/veronica-core).
 
 veronica-core is the deterministic enforcement kernel -- cost ceilings, step limits,
 circuit breakers, distributed budget. It runs local, has no dependencies, and its
@@ -23,7 +28,7 @@ Your Application
        |
   veronica-core    -- enforcement kernel (pip install veronica-core)
        |
-  veronica-cp      -- control plane (pip install veronica-cp)
+  VERONICA         -- control plane (pip install veronica-cp)
        |
   LLM Providers
 ```
@@ -118,7 +123,7 @@ vos = VeronicaOS(emitter=emitter)
 ## Architecture
 
 ```
-veronica-core (kernel)       veronica (control plane)
+veronica-core (kernel)       VERONICA (control plane)
 -------------------------    --------------------------------
 ExecutionContext              Policy authoring (PUT /policies)
 ShieldPipeline               Simulation (POST /simulate)
@@ -132,7 +137,7 @@ OTel export                  Prometheus + Grafana
 The kernel enforces. The control plane manages.
 
 veronica-core's guarantees are unconditional -- they do not depend on the control plane.
-The control plane extends those guarantees with policy lifecycle, visibility, and
+VERONICA extends those guarantees with policy lifecycle, visibility, and
 organizational structure.
 
 ---
@@ -141,10 +146,11 @@ organizational structure.
 
 **veronica-core**: [v3.4.3](https://github.com/amabito/veronica-core) -- stable, 4837 tests.
 
-**veronica-cp (this repo)**: v0.8.1 -- 1197 tests.
+**VERONICA (this repo)**: v0.8.1 -- 1197 tests.
 
 | Version | Milestone |
 |---------|-----------|
+| v0.8.1  | PyPI initial release as `veronica-cp` |
 | v0.8.0  | Control plane GA: HTTP API, dashboard, deploy stack, tenant hierarchy, rollout pipeline, incident replay, design partner docs |
 | v0.7.0  | Org policy engine: validate/clamp, `step_denied` metric |
 | v0.6.0  | LLM integration adapter: `step()` context manager |

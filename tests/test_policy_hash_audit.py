@@ -103,7 +103,7 @@ class TestComputePolicyHash:
 
 
 class TestPolicyHashInPayload:
-    def test_step_completed_payload_has_policy_hash(self, tmp_path) -> None:
+    def test_step_completed_payload_has_policy_hash(self) -> None:
         emitter = BufferedEmitter()
         vos = VeronicaOS(emitter=emitter)
         handle = vos.before_step(_intent())
@@ -115,7 +115,7 @@ class TestPolicyHashInPayload:
         assert "policy_hash" in payload
         assert len(payload["policy_hash"]) == 64
 
-    def test_step_completed_payload_has_audit_id(self, tmp_path) -> None:
+    def test_step_completed_payload_has_audit_id(self) -> None:
         emitter = BufferedEmitter()
         vos = VeronicaOS(emitter=emitter)
         handle = vos.before_step(_intent())

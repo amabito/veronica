@@ -42,9 +42,9 @@ def arbiter():
     """RedisArbiter backed by fakeredis."""
     from veronica.redis_arbiter import _ctx_request_id, _ctx_step_id
 
-    # Reset contextvars to ensure test isolation
-    _ctx_request_id.set(None)
-    _ctx_step_id.set(None)
+    # Save and restore contextvars for test isolation
+    token_req = _ctx_request_id.set(None)
+    token_step = _ctx_step_id.set(None)
 
     fake_redis = fakeredis.FakeRedis(decode_responses=True)
     arb = RedisArbiter.__new__(RedisArbiter)
@@ -62,7 +62,11 @@ def arbiter():
 
     arb._reserve_script = fake_redis.register_script(LUA_RESERVE)
     arb._settle_script = fake_redis.register_script(LUA_SETTLE)
-    return arb
+    yield arb
+
+    # Restore contextvars
+    _ctx_request_id.reset(token_req)
+    _ctx_step_id.reset(token_step)
 
 
 class TestMicrousd:

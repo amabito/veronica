@@ -3,18 +3,18 @@
 
 from __future__ import annotations
 
-import time
-
 import pytest
 from fastapi.testclient import TestClient
 
 from veronica.api.app import create_app
 
+_FIXED_ISSUED_AT = 1_700_000_000.0  # Fixed timestamp for deterministic hashing
+
 _BASE_POLICY: dict = {
     "chain_id": "test-chain",
     "ceiling_usd": 1.0,
     "on_exceed": "halt",
-    "issued_at": time.time(),
+    "issued_at": _FIXED_ISSUED_AT,
 }
 
 _CHEAP_STEP = {"kind": "llm", "cost_usd": 0.01, "tokens_out": 100, "elapsed_ms": 50.0}

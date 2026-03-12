@@ -67,8 +67,8 @@ A probabilistic or adaptive layer must never sit inside the enforcement boundary
 
 Early stage.
 
-veronica-core is production-ready ([v3.7.0](https://github.com/amabito/veronica-core/releases/tag/v3.7.0) -- 5672 tests).
-VERONICA OS layers are in design.
+veronica-core is production-ready ([v0.10.x](https://github.com/amabito/veronica-core)).
+VERONICA OS layers are in design. Implementation begins when `PlannerProtocol` is defined in veronica-core (planned v1.0).
 
 ---
 

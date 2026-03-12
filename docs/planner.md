@@ -5,7 +5,7 @@
 The Planner decides what limits to apply to an upcoming execution context.
 It reads the current state of the agent's execution graph, applies rules, and produces a `PolicyConfig` that veronica-core will enforce.
 
-The Planner is not an orchestrator. It does not decide what the agent does — routing, model selection, and prompt construction are outside its scope. It decides how much budget to allow, how long to wait, and what to do when those limits are hit.
+The Planner is not an orchestrator. It does not decide what the agent does -- routing, model selection, and prompt construction are outside its scope. It decides how much budget to allow, how long to wait, and what to do when those limits are hit.
 
 ---
 
@@ -31,7 +31,7 @@ Crossing this boundary turns the Planner into an orchestrator. That is a differe
 veronica-core --[graph_snapshot]--> Planner --[PolicyConfig]--> veronica-core
 ```
 
-After each execution context, the caller retrieves a `graph_snapshot()` from the context and passes it to `planner.update()`. The Planner uses the snapshot to adjust its internal state — spending rate, failure rate, depth patterns — and applies those adjustments the next time `create_config()` is called.
+After each execution context, the caller retrieves a `graph_snapshot()` from the context and passes it to `planner.update()`. The Planner uses the snapshot to adjust its internal state -- spending rate, failure rate, depth patterns -- and applies those adjustments the next time `create_config()` is called.
 
 The kernel never modifies its behavior based on snapshot data mid-execution. Adaptation always flows through a new `PolicyConfig` issued by the Planner before the next context starts.
 
@@ -55,7 +55,7 @@ Cross-service circuit state, shared budget pools across agents, org-level policy
 
 ---
 
-## SimplePlanner — API
+## SimplePlanner -- API
 
 ```python
 from veronica_core import ExecutionContext
@@ -97,7 +97,7 @@ Produces a `PolicyConfig` for the next execution context.
 | `estimated_steps` | `int` | Caller's estimate of how many steps the chain will take. Used to set `ceiling_steps`. |
 | `priority` | `int` | 0–100. Higher-priority contexts receive a more generous ceiling when the Planner is tightening. |
 
-The Planner reads its current internal state (adjusted ceiling, timeout, escalation policy) and writes those values into the returned `PolicyConfig`. The caller does not set the ceiling directly — that is the Planner's decision.
+The Planner reads its current internal state (adjusted ceiling, timeout, escalation policy) and writes those values into the returned `PolicyConfig`. The caller does not set the ceiling directly -- that is the Planner's decision.
 
 ### `update(snapshot: dict)`
 
@@ -115,11 +115,11 @@ Ingests a `graph_snapshot()` dict from a completed `ExecutionContext`. Updates i
 
 `SimplePlanner` applies three rules after each `update()`:
 
-**Rule 1 — Halt tightening.** If the most recent context halted on a cost ceiling, reduce the effective ceiling by 10%, down to `min_ceiling_usd`.
+**Rule 1 -- Halt tightening.** If the most recent context halted on a cost ceiling, reduce the effective ceiling by 10%, down to `min_ceiling_usd`.
 
-**Rule 2 — Clean run loosening.** If the most recent context completed without any halt or degrade event, increase the effective ceiling by 5%, up to `max_ceiling_usd`.
+**Rule 2 -- Clean run loosening.** If the most recent context completed without any halt or degrade event, increase the effective ceiling by 5%, up to `max_ceiling_usd`.
 
-**Rule 3 — Depth guard.** If `aggregates.max_depth >= 8`, set `on_exceed="halt"` regardless of the configured default. Deep recursion is treated as a signal of an uncontrolled loop.
+**Rule 3 -- Depth guard.** If `aggregates.max_depth >= 8`, set `on_exceed="halt"` regardless of the configured default. Deep recursion is treated as a signal of an uncontrolled loop.
 
 These rules are applied in order. Rule 3 takes precedence over the `default_on_exceed` setting but does not override a `priority >= 90` context.
 

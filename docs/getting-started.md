@@ -6,9 +6,9 @@ This document is for backend engineers who have used veronica-core and want to u
 
 ## What You Get
 
-- **SimplePlanner** — a rule-based planner that reads execution history and adjusts cost ceilings across runs. You call it before each context to get a `PolicyConfig`; you feed it the snapshot after.
-- **PolicyConfig** — the typed contract between the Planner and veronica-core's executor. The Planner produces it; veronica-core enforces it. You do not construct it directly.
-- **Feedback loop** — after each run, `planner.update(snapshot)` ingests the graph snapshot and adjusts internal state. The next `create_config()` call reflects that adjustment. Tighter ceilings after halts, looser ceilings after clean runs.
+- **SimplePlanner** -- a rule-based planner that reads execution history and adjusts cost ceilings across runs. You call it before each context to get a `PolicyConfig`; you feed it the snapshot after.
+- **PolicyConfig** -- the typed contract between the Planner and veronica-core's executor. The Planner produces it; veronica-core enforces it. You do not construct it directly.
+- **Feedback loop** -- after each run, `planner.update(snapshot)` ingests the graph snapshot and adjusts internal state. The next `create_config()` call reflects that adjustment. Tighter ceilings after halts, looser ceilings after clean runs.
 
 ---
 
@@ -101,5 +101,5 @@ That is Phase 3 (multi-context coordination). Not available yet. Track progress 
 
 ## Next Steps
 
-- [Planner reference](planner.md) — ceiling adjustment rules, SimplePlanner API, phase roadmap
-- [PolicyConfig specification](policy-config.md) — all fields, escalation options, audit metadata
+- [Planner reference](planner.md) -- ceiling adjustment rules, SimplePlanner API, phase roadmap
+- [PolicyConfig specification](policy-config.md) -- all fields, escalation options, audit metadata

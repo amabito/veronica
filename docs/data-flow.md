@@ -406,7 +406,7 @@ if ingestor.error_total > 0:
 ```
 
 Common conversion failure: `event.metadata` is `None` or missing required keys.
-Ensure `step_id` and `chain_id` are in `SafetyEvent.metadata`.
+Verify that `step_id` and `chain_id` are in `SafetyEvent.metadata`.
 
 ### Degraded steps not showing in metrics
 

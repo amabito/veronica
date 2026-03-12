@@ -193,7 +193,7 @@ class TestTotalSpentUsdThreadSafety:
         # All costs must be recorded; no lost updates
         expected = n_threads * cost_per_step
         assert abs(vos._total_spent_usd - expected) < 1e-9, (
-            f"Expected {expected:.6f}, got {vos._total_spent_usd:.6f} — likely race"
+            f"Expected {expected:.6f}, got {vos._total_spent_usd:.6f} -- likely race"
         )
 
     def test_has_lock_attribute(self) -> None:
@@ -405,7 +405,7 @@ class TestChainRemainingUsd:
         vos.after_step(handle_a, _snapshot(chain_id="chainA", cost=5.0))
 
         # chain B should NOT see chain A's spend in its chain_remaining_usd
-        # We inspect via before_step on chainB — the handle carries the budget state
+        # We inspect via before_step on chainB -- the handle carries the budget state
         # indirectly through DesiredPolicy.ceiling_usd
         handle_b = vos.before_step(_intent(step_id="sB", chain_id="chainB"))
         # chain B must not be limited to (global_budget - chainA_spend)

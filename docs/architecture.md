@@ -48,7 +48,7 @@ Manages policy across agents, services, and organizations.
 
 | Component | Role |
 |---|---|
-| Planner | Execution strategy — decides what limits to set |
+| Planner | Execution strategy -- decides what limits to set |
 | Budget allocation | Distributes budget across competing agents |
 | Cost prediction | Estimates spend before LLM calls are made |
 | Arbitration | Resolves contention under shared resource constraints |
@@ -73,8 +73,8 @@ VERONICA adds coordination and governance. It does not add enforcement.
 
 **Planner scope boundary.**
 
-The Planner decides *what limits to set* — ceiling, timeout, escalation policy.
-The Planner does not decide *what the agent does* — routing, model selection, prompt construction.
+The Planner decides *what limits to set* -- ceiling, timeout, escalation policy.
+The Planner does not decide *what the agent does* -- routing, model selection, prompt construction.
 Crossing this boundary turns the Planner into an orchestrator. That is a different product.
 
 ---

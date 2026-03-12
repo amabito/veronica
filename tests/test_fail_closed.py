@@ -406,5 +406,5 @@ class TestMissingConfigErrorMessages:
             body = client.get("/health").json()
             # subsystem status is "unavailable" for missing interface
             assert body["subsystems"]["store"] == "unavailable"
-            # Ensure no internal details leak
+            # Verify no internal details leak
             assert "StoreWithoutInterface" not in str(body)

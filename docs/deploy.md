@@ -221,7 +221,7 @@ Verify the metrics server is running:
 curl http://127.0.0.1:9464/metrics
 ```
 
-If the endpoint is unreachable, ensure you installed the `metrics` extra (`pip install -e ".[metrics]"`)
+If the endpoint is unreachable, verify you installed the `metrics` extra (`pip install -e ".[metrics]"`)
 and that `start_metrics_server()` is called in your application setup.
 
 ### Docker Compose fails to start

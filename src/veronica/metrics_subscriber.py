@@ -55,7 +55,7 @@ class MetricsSubscriber:
             REGISTRY,
         )
 
-        _ = _CR  # ensure import is not stripped
+        _ = _CR  # keep import from being stripped
 
         registry = registry or REGISTRY
 

@@ -110,7 +110,7 @@ class TestAdversarialPolicyDistributor:
     def test_no_signing_key_produces_no_signature(self) -> None:
         """Without VERONICA_POLICY_SIGNING_KEY the bundle carries no signature."""
         with patch.dict("os.environ", {}, clear=False):
-            # Ensure key is absent
+            # Confirm key is absent
             import os
 
             os.environ.pop("VERONICA_POLICY_SIGNING_KEY", None)

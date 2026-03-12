@@ -477,7 +477,7 @@ class TestOrgPolicyAdversarial:
 
 
 class TestOrgPolicyDeniedPathCoverage:
-    """Ensure _check_denial fires on ALL StepContext entry points."""
+    """Verify _check_denial fires on ALL StepContext entry points."""
 
     def test_run_llm_raises_on_denial(self) -> None:
         """run_llm() must raise OrgPolicyDenied, not just run()."""

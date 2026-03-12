@@ -29,7 +29,7 @@ def client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     """Auth-disabled client with lifespan started (context manager)."""
     monkeypatch.setenv("VERONICA_AUTH_DISABLED", "1")
     app = create_app()
-    # Use context manager to ensure lifespan (startup) runs
+    # Use context manager so lifespan (startup) runs
     with TestClient(app, raise_server_exceptions=False) as c:
         yield c
 

@@ -24,8 +24,19 @@ def no_links(path: Path):
 
 
 def read_regular(path: Path, limit: int) -> bytes:
+    """Read one stable regular file; compare handle metadata with handle metadata.
+
+    Reopen the name while the original handle is still live. Comparing fstat()
+    with path.stat() mixes platform-specific implementations on Windows; using
+    fstat() for all three observations retains the full identity/time checks.
+    This also checks that the name still resolves to the object we actually read.
+    """
     no_links(path)
-    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0)
+    candidate = path.lstat()
+    if not stat.S_ISREG(candidate.st_mode) or candidate.st_nlink != 1:
+        raise Stopped("not_an_exclusive_regular_file")
+    flags = (os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+             | getattr(os, "O_BINARY", 0) | getattr(os, "O_NONBLOCK", 0))
     fd = os.open(path, flags)
     with os.fdopen(fd, "rb") as stream:
         before = os.fstat(stream.fileno())
@@ -35,8 +46,14 @@ def read_regular(path: Path, limit: int) -> bytes:
             raise ReviewRequired("document_too_large")
         data = stream.read(limit + 1)
         after = os.fstat(stream.fileno())
-    current = path.stat(follow_symlinks=False)
-    fields = lambda s: (s.st_dev, s.st_ino, s.st_size, s.st_mtime_ns, s.st_ctime_ns)
+        no_links(path)
+        reopened = os.open(path, flags)
+        try:
+            current = os.fstat(reopened)
+        finally:
+            os.close(reopened)
+    fields = lambda s: (s.st_dev, s.st_ino, s.st_mode, s.st_nlink,
+                        s.st_size, s.st_mtime_ns, s.st_ctime_ns)
     if fields(before) != fields(after) or fields(after) != fields(current):
         raise ReviewRequired("source_changed_during_read")
     if len(data) > limit:

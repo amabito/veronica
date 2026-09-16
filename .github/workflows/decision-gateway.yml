@@ -63,7 +63,7 @@ jobs:
           python -c "from importlib.metadata import version; from veronica_core.containment import ExecutionContext; assert version('veronica-core') == '3.10.0'; assert version('pypdf') == '6.18.1'"
       - name: Real document workflow, restart, deduplication, and kernel tests
         working-directory: extensions/decision-gateway
-        run: python -m pytest tests/test_autopilot.py tests/test_autopilot_core.py -q --cov=veronica_gateway.autopilot --cov-branch --cov-fail-under=80
+        run: python -m pytest tests/test_autopilot.py tests/test_autopilot_core.py tests/test_autopilot_filesystem.py -q --cov=veronica_gateway.autopilot --cov-branch --cov-fail-under=80
       - name: Execute two autonomous demo runs with real file effects
         working-directory: extensions/decision-gateway
         run: python -m veronica_gateway.autopilot demo --workspace "$RUNNER_TEMP/veronica-autopilot-demo"

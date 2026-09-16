@@ -1,0 +1,39 @@
+name: Decision Gateway extension
+
+on:
+  pull_request:
+    paths:
+      - 'extensions/decision-gateway/**'
+      - '.github/workflows/decision-gateway.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  gateway:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.10', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install inspected kernel and extension test dependencies
+        run: |
+          python -m pip install 'veronica-core @ git+https://github.com/amabito/veronica-core@d03aa2fcba32dadcb9a8f22b52ab402af7829ef7'
+          python -m pip install -e './extensions/decision-gateway[test]'
+      - name: Require real kernel (do not permit mock-only green)
+        run: |
+          python -c "from importlib.metadata import version; from veronica_core.containment import ExecutionContext; assert version('veronica-core') == '3.10.0'"
+      - name: Test extension with real kernel
+        working-directory: extensions/decision-gateway
+        run: python -m pytest -q --cov=veronica_gateway --cov-branch --cov-fail-under=95
+      - name: Run local-only demonstration
+        working-directory: extensions/decision-gateway
+        run: python examples/support_triage.py

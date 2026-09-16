@@ -1,168 +1,228 @@
-# VERONICA Decision Gateway -- experimental application-side extension
+# VERONICA Gateway + Document Autopilot (experimental)
 
-A provider-neutral **advisory decision cascade**: local rule -> lightweight
-assessment -> frontier assessment -> human review. This is the first implementation
-slice, not a hosted service, an agent OS, an authorization server, or a billing product.
+**The document workflow now executes the delegated job, not just a recommendation.**
+The operator delegates a specific empty local workspace and permitted issuers once.
+Valid supported documents then flow through intake, SQLite ledger registration,
+non-destructive archival, read-back verification and durable JSON reporting without
+per-document approval dialogs. Exceptions are reported separately.
 
-This package is deliberately separate from both `veronica-core` and the existing
-control-plane `Planner`. It does not change their defaults, install an HTTP route,
-start a service, or import itself into `veronica-cp`.
+Two separate components are intentionally retained:
 
-## Safety boundary
+- `veronica_gateway.DecisionGateway`: the original advisory model-routing SDK.
+  It never grants permission. Its design and usage remain in
+  [DECISION_GATEWAY.md](DECISION_GATEWAY.md).
+- `veronica_gateway.autopilot.Autopilot`: the new fixed-workflow executor, which
+  obtains permission from an explicit local `Delegation`, **not model confidence**.
+  It wraps real operations with `veronica-core` and persists real workflow state.
 
-```
-Application -> optional DecisionGateway
-                 | each assessment call
-                 v
-          caller-owned ExecutionContext -> registered provider
-                 |
-                 v
-         advisory recommendation / review_required / blocked
-                 |
-       separate, authorized application workflow
-                 |
-          core enforcement AGAIN -> any actual tool or side effect
-```
+This remains an isolated optional extension. It does not change the existing
+control-plane Planner, API routes, deployment, core enforcement, secrets or main
+package version. No live model calls, email sends, payments, remote service changes,
+agent desktop automation or hosted SaaS deployment are included.
 
-**Model confidence never grants permission.** `authorization_granted` is always
-false, even for a deterministic rule or a recommendation with confidence 1.0.
-The returned outcome `recommendation` means only that an assessment passed the
-configured routing threshold. It does not mean an action is allowed, safe or correct.
-Default policy requires human review; this package does not implement approval issuance.
+## Run a real end-to-end demonstration
 
-Provider scores are not calibrated probabilities of correctness. Calibrate the
-threshold on held-out, task-specific data before relying on recommendations in a
-workflow. No accuracy, savings, latency or hallucination-free claim is made.
-
-## Implemented
-
-- Frozen Choice request/assessment/policy contracts; canonical bounded JSON input.
-  Duplicate JSON keys, NaN/infinity, excessive depth, booleans in numeric fields,
-  mutable or duplicate choices and labels outside the schema are rejected.
-- Ordered rule/light/frontier cascade, bounded attempts, explicit abstention,
-  and escalation to human review. Only valid low-confidence/abstaining responses
-  advance to another provider. Errors and kernel denials do not trigger fallback.
-- External providers are disabled by default and are configured by trusted code,
-  not selected or enabled by the request. Each provider gets a fresh parsed context.
-- Mandatory call-boundary and acknowledged audit interfaces; no pass-through
-  production boundary and no implicit best-effort audit sink.
-- `CoreCallBoundary` reuses the caller's **same** ExecutionContext for the whole
-  cascade. Every assessment, including a zero-cost rule, goes through the kernel.
-  The request ID must match the context. HALT, RETRY, DEGRADE, missing callback
-  execution and post-call abort all withhold the answer. The core returns a control
-  decision, not the callback result, so the adapter captures them separately.
-- Correlated metadata-only audit records with input/configuration digests. No
-  raw input, raw answer, confidence or exception message is recorded by the gateway.
-  `MemoryAuditSink` is a bounded, thread-safe demo sink, NOT durable storage.
-
-## Install and test from this repository
-
-This package has not been published by this change. From the repository root:
+From the repository root, with Python 3.10+ (CI qualification is described below):
 
 ```bash
-python -m pip install -e './extensions/decision-gateway[kernel,test]'
-cd extensions/decision-gateway
-python -m pytest -q --cov=veronica_gateway --cov-branch
-python examples/support_triage.py
+python -m pip install -e "./extensions/decision-gateway[kernel,documents,test]"
+python -m veronica_gateway.autopilot demo --workspace ./veronica-autopilot-demo
 ```
 
-The kernel integration target inspected for this change is `veronica-core` 3.10.0
-at commit `d03aa2fcba32dadcb9a8f22b52ab402af7829ef7`. The workflow pins that source
-commit; the optional dependency declares `>=3.10.0,<4`. Older core versions have
-not been qualified. The base control plane is `amabito/veronica` commit
-`730f42830ac8ccee553d668b54aa950966b9dcbf`.
+The demo requires a **new empty directory**. It creates synthetic documents, imports
+one document into an actual SQLite ledger, recognizes its duplicate, sends an
+unstructured document to review, and runs a second time to verify deduplication.
+It uses the real core; there is no unprotected fallback when core is unavailable.
+No network service, model credential or paid API is required at runtime.
+The `documents` extra pins `pypdf==6.18.1`; JSON/text require no PDF library.
 
-Without the optional kernel, only the independent and mocked-contract tests run:
+## Delegate a workspace and leave the runner operating
+
+Example for Windows (use a local directory, not a shared network drive):
+
+```powershell
+python -m veronica_gateway.autopilot init --workspace C:/veronica/work --issuer "Example Supplier"
+python -m veronica_gateway.autopilot watch --policy C:/veronica/work/.veronica/delegation.json
+```
+
+`init` is the explicit delegation action. Repeat `--issuer` for each exact permitted
+issuer. Default validity is 30 days, adjustable with `--valid-days` (1 to 365).
+A filename or document cannot expand the workspace, tool list or issuer allowlist.
+The issuer field is a content filter, **not authenticated proof of who sent a file**.
+Secure the inbox producers and workspace with operating-system permissions.
+
+Place supported files in `inbox/`. `watch` stays in the foreground, scans every
+10 seconds by default, and works only while that process is running. It is not an
+installed daemon or a remotely running task. `--interval` accepts 1 to 3600 seconds.
+For a single batch:
+
+```powershell
+python -m veronica_gateway.autopilot run --policy C:/veronica/work/.veronica/delegation.json
+```
+
+There is no approval prompt within the allowed workflow. An operator stops it with
+Ctrl+C or by creating `.veronica/STOP`. STOP, expiry, changed delegation bytes,
+missing permissions or core denial stop new actions. Reload after a policy change.
+An operation already in progress cannot be undone by revoking subsequent permission.
+
+Exit codes: 0 = selected work completed without outstanding/deferred work;
+2 = review, retryable, pending or deferred work exists; 3 = runner stopped or setup
+failed; 130 = operator interrupt. `watch` reports ordinary document exceptions and
+continues with other documents, but stops on authority/core/audit failures.
+
+## Supported documents (explicitly limited)
+
+JSON accepts the exact fields in this example. The first five are required; amount
+and currency must either both be absent or both be valid. Amounts are decimal
+**strings**, never floating-point numbers. Supported currencies are JPY, USD and EUR;
+no tax calculation, settlement or currency conversion is performed.
+
+```json
+{
+  "document_id": "INV-2026-001",
+  "kind": "invoice",
+  "issuer": "Example Supplier",
+  "document_date": "2026-09-16",
+  "title": "Office supplies",
+  "amount": "12000",
+  "currency": "JPY"
+}
+```
+
+Kinds are `invoice`, `receipt`, `order` and `report`. Restrict `kinds` in the trusted
+policy to narrow the workflow. Unknown kinds, extra or duplicate fields, invalid
+dates, ambiguous records or disallowed issuers are not automatically registered.
+
+UTF-8 text and text-based PDF use one `field: value` per line, without an unrelated
+header/footer or multiline value. English field names above are accepted. Japanese
+aliases are also supported:
+
+```text
+書類番号：INV-2026-001
+種別：invoice
+発行者：Example Supplier
+日付：2026-09-16
+件名：備品
+金額：12000
+通貨：JPY
+```
+
+This is a strict template adapter, **not an AI that understands arbitrary invoices**.
+Scanned/image-only PDFs, encrypted PDFs and unfamiliar layouts require review; no
+OCR or guessed extraction is substituted. The PDF parser runs in a disposable
+process with a 10-second parent deadline, a 20-page limit and a 65,536-character
+output limit. POSIX resource bounds are best effort; Windows has the deadline but
+no implemented process-memory quota. Do not treat this as a hardened parser sandbox.
+
+## Outputs and resumable state
+
+```text
+workspace/
+  inbox/                         original files remain untouched
+  archive/<kind>/<sha>.<suffix>   verified content-addressed copies
+  reports/<job-id>.json           durable per-document completion receipt
+  reports/run-<run-id>.json       readable results, filenames and exceptions
+  .veronica/delegation.json       trusted operator configuration
+  .veronica/state.sqlite3         ledger, job journal, audit and exact run reports
+  .veronica/runner.lock           OS-owned single-runner lock
+```
+
+The local ledger is SQLite, **not an Excel workbook or an external accounting
+system**. The `ledger` table stores canonical document records. No existing row is
+silently updated. Reports are local files/stdout, not email or push notifications.
+
+State progression:
+
+```
+READY -> REGISTERED -> ARCHIVED -> VERIFIED -> COMPLETED
+                       |
+                    exceptions -> REVIEW_REQUIRED
+```
+
+Business identity is the exact `(kind, issuer, document_id)` tuple after Unicode
+normalization. Its unique database key prevents duplicate ledger rows. Identical
+file bytes share a job; the same semantic record with different byte formatting
+may have multiple preserved archives but still one ledger entry. A different record
+for an existing business identity is a conflict, not permission to overwrite it.
+
+SQLite registration and the journal transition commit in one transaction. Archive
+and report paths are deterministic, atomically published without overwriting an
+existing different file, then read back. A crash after a committed registration or
+a published copy is reconciled on the next run; it is not blindly repeated.
+Reserved `.veronica-pending-*` temporary links are reconciled after a publish crash.
+The OS releases the runner lock even if the process dies.
+
+Completion requires ledger read-back equality, archive byte equality and original
+source byte equality. Repeated completed jobs are reverified. Post-completion
+archive/ledger/receipt conflicts are surfaced and not overwritten. Unfinished jobs
+remain visible in `pending_jobs` even if their source disappears.
+
+An audit intent is durably acknowledged before each document operation. If audit
+fails after a side effect, that effect cannot be undone; the run stops and the
+journal/receipt is the recovery evidence. This is **not a cross-filesystem/SQLite
+atomic transaction** or a general exactly-once remote tool protocol.
+The exact final run report is saved in SQLite before publication; the most recent
+100 reports are reconciled at the next run. Older stored reports remain in SQLite.
+
+Review states are not repeatedly executed unattended. Correcting an input changes
+its content hash and creates a new candidate. A changed authorized policy permits
+re-evaluation of cached intake rejection. Existing ledger/archival conflicts require
+operator reconciliation; no destructive automatic repair or reviewer UI is included.
+
+## Delegation, limits and trust boundary
+
+The built-in operations are `read_inbox`, `register_ledger`, `archive_copy`, `verify`
+and `write_report`. The whole workflow's permissions are checked before opening the
+work database and again immediately before each tool. One real `ExecutionContext`
+is shared across a batch. HALT, RETRY, DEGRADE, exceptions and missing callback
+execution do not enable an alternate unprotected execution route.
+
+Default batch size is 100, configurable up to 1,000. Default maximum document size
+is 5 MiB, configurable up to 10 MiB. Inbox discovery is top-level only and bounded
+at 10,000 entries. A persisted round-robin cursor prevents earlier completed files
+from permanently starving later files. `deferred` means not examined in this batch,
+not necessarily an unprocessed business document.
+
+The starter storage stops at 100,000 audit events or 10,000 run reports rather than
+silently discarding them. `watch` rechecks files and writes audit/reports even for
+replays; it is not an indefinite-retention service. Archive storage is not quota
+managed in this MVP. Operators must monitor disk capacity and archive workspace
+state appropriately; no automatic record deletion is authorized.
+
+Only service-owned local filesystems supporting hard links are intended (for
+example local NTFS or a POSIX filesystem). Symlinks, reparse points and hardlinked
+input/DB files are rejected. This is not a network-share or multi-host coordinator.
+The lock coordinates participating local processes, not arbitrary external software.
+
+The process, installed code, custom adapters, policy and state directories are
+trusted. An attacker with the same OS account can alter code, race directory changes
+or manipulate SQLite; this implementation is not a security boundary against them.
+The local policy digest is not a signature. Protect it with an OS service account
+and permissions. Audit is not tamper-proof or encrypted, and input/record metadata
+and filenames are sensitive local data. The core's cancellation semantics are not
+changed; arbitrary Python callbacks are not forcibly terminated by the tool adapter.
+
+The autopilot currently needs **no model**, because this workflow can be completed
+with deterministic extraction. Future model adapters must return validated records
+and must not supply paths, tool names or execution permissions. No accuracy or
+cost-savings claims have been measured on a customer dataset.
+
+## Verification
 
 ```bash
-python -m pip install -e './extensions/decision-gateway[test]'
 cd extensions/decision-gateway
 python -m pytest -q
 ```
 
-`tests/test_core_contract.py` uses explicitly labelled mocks; it is not evidence
-of real-kernel compatibility. `tests/test_core_integration.py` skips explicitly
-when the kernel is absent. CI imports the real kernel before pytest so a missing
-kernel cannot silently turn a green CI run into mock-only verification.
+`test_autopilot.py` uses real temporary files/SQLite but an explicitly test-only
+boundary; it covers deduplication, conflicting business identity, revoked delegation,
+read-back tampering, actual subprocess death after a database commit and after
+hard-link publication, lock release, PDF extraction, batch fairness and review.
+`test_autopilot_core.py` tests the actual kernel and actual CLI demo; without core,
+that module skips explicitly rather than claiming qualification. PDF tests require
+the documents extra. CI imports pinned real core before running any integration tests.
 
-The example uses local deterministic **demo** classifiers, not an LLM or Jev.
-It makes no external calls and uses no credentials. Replace `Provider.assess`
-with a trusted adapter only after validating its SDK, response parser, deadlines,
-maximum output size and task-specific quality. No vendor API is invented here.
-
-## Minimal wiring
-
-```python
-from veronica_core.containment import ChainMetadata, ExecutionConfig, ExecutionContext
-from veronica_gateway import (
-    Assessment, CoreCallBoundary, DecisionGateway, DecisionRequest,
-    MemoryAuditSink, Provider, RoutingPolicy, Stage,
-)
-
-request = DecisionRequest("request-1", "support-triage", ("billing", "technical"),
-                          '{"category":"invoice"}')
-policy = RoutingPolicy("support-v1", "support-triage", request.choices)
-rule = Provider("local-rule", Stage.RULE,
-                lambda r: Assessment("billing", 1.0)
-                if r.context().get("category") == "invoice"
-                else Assessment(None, 0.0))
-
-with ExecutionContext(
-    config=ExecutionConfig(max_cost_usd=0.10, max_steps=4,
-                           max_retries_total=1, timeout_ms=5000),
-    metadata=ChainMetadata(request_id=request.request_id, chain_id="support-1"),
-) as context:
-    gateway = DecisionGateway(policy, (rule,), boundary=CoreCallBoundary(context),
-                              audit=MemoryAuditSink())  # demo storage only
-    result = gateway.evaluate(request)
-    assert result.authorization_granted is False
-    # Present the suggestion to an authorized reviewer. No tool action here.
-```
-
-## Threat model and important limitations
-
-Provider callbacks, their external/local declarations, the policy, the kernel
-context and the audit sink are **trusted host integration code**. Request content
-and model output are untrusted data. A malicious in-process plugin can bypass Python
-objects or make its own network calls: this is not an OS sandbox or an egress firewall.
-The `external` flag is a routing restriction, not a network-isolation mechanism.
-
-The configuration digest binds policy and declared provider metadata, not executable
-code, credentials or model weights. It is not signed-policy attestation. Request
-hashes are correlatable and may expose low-entropy inputs to guessing; handle them
-as sensitive metadata, not anonymized data. Do not put customer content in IDs.
-
-`cost_estimate_usd` is a trusted estimate passed to the kernel's existing cost
-hint/reservation/accounting path. It is not a verified upper bound or a billing
-receipt. No second budget counter is introduced here. SDK retries, actual token
-usage, failed-call charges and multi-request/distributed accounting require a
-proper provider/usage integration before commercial metering. This MVP does not
-claim to cap an invoice based solely on estimates.
-
-The adapter is synchronous and does not forcibly interrupt arbitrary Python calls.
-Use provider-level network deadlines and a process/container boundary where hard
-termination is required. The kernel's own configured cancellation semantics remain
-unchanged; this extension adds no hard timeout guarantee.
-
-Audit failure before an attempt prevents that call. Audit failure after a call
-suppresses the result, but cannot undo an already paid inference. Treat
-`AuditUnavailable` as a stop, not a reason to retry automatically. Request IDs are
-correlation IDs, not deduplication keys: repeated calls can execute again.
-A custom audit sink must acknowledge storage or raise, never silently drop events.
-The in-memory sink deliberately stops at capacity instead of discarding records.
-
-There is no HTTP API, authentication/tenant mapping, durable approval workflow,
-signed audit export, usage settlement, customer billing, SDK adapter, desktop agent
-or legacy software automation in this slice. There are no changes to the core,
-control-plane Planner, existing API routes, secrets, deployment or package releases.
-
-## Next qualification gates (not implemented in this slice)
-
-1. Qualify an actual provider on a versioned task dataset; measure errors and
-   escalation rate as well as cost/latency. Keep operational authorization separate.
-2. Add an authenticated application endpoint, tenant/chain binding, durable audit
-   and idempotency/usage settlement; do not make the routing SDK an auth service.
-3. Implement durable reviewer decisions bound to the exact input, policy version,
-   operation and expiry, followed by core re-enforcement at the actual side effect.
-4. Run deployment and control-plane regression tests before enabling this extension
-   in an existing application. Paid plans and savings claims require real measurements.
+Existing decision-gateway tests retain their original 95% coverage gate, isolated
+from the added modules. Autopilot tests have their own 80% coverage gate on Linux
+and Windows/Python 3.12. Coverage is not proof of correctness, safety, authenticity,
+commercial readiness or complete regression coverage of the control plane.

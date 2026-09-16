@@ -33,7 +33,37 @@ jobs:
           python -c "from importlib.metadata import version; from veronica_core.containment import ExecutionContext; assert version('veronica-core') == '3.10.0'"
       - name: Test extension with real kernel
         working-directory: extensions/decision-gateway
-        run: python -m pytest -q --cov=veronica_gateway --cov-branch --cov-fail-under=95
+        run: python -m pytest tests/test_gateway.py tests/test_core_contract.py tests/test_core_integration.py -q --cov=veronica_gateway.contracts --cov=veronica_gateway.core --cov=veronica_gateway.engine --cov-branch --cov-fail-under=95
       - name: Run local-only demonstration
         working-directory: extensions/decision-gateway
         run: python examples/support_triage.py
+
+  autopilot:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ['3.12']
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install pinned real kernel and document parser
+        run: |
+          python -m pip install 'veronica-core @ git+https://github.com/amabito/veronica-core@d03aa2fcba32dadcb9a8f22b52ab402af7829ef7'
+          python -m pip install -e './extensions/decision-gateway[test,documents]'
+          python -c "from importlib.metadata import version; from veronica_core.containment import ExecutionContext; assert version('veronica-core') == '3.10.0'; assert version('pypdf') == '6.18.1'"
+      - name: Real document workflow, restart, deduplication, and kernel tests
+        working-directory: extensions/decision-gateway
+        run: python -m pytest tests/test_autopilot.py tests/test_autopilot_core.py -q --cov=veronica_gateway.autopilot --cov-branch --cov-fail-under=80
+      - name: Execute two autonomous demo runs with real file effects
+        working-directory: extensions/decision-gateway
+        run: python -m veronica_gateway.autopilot demo --workspace "$RUNNER_TEMP/veronica-autopilot-demo"
